@@ -1,0 +1,1074 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AetherKite Terminal | Indian Equities</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+    body { font-family: 'Plus Jakarta Sans', sans-serif; }
+    .mono { font-family: 'JetBrains Mono', monospace; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col">
+
+  <!-- TOP HEADER -->
+  <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-40 px-6 py-3.5 flex flex-wrap items-center justify-between gap-4">
+    <div class="flex items-center space-x-3">
+      <div class="w-9 h-9 rounded-lg bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
+        <i data-lucide="activity" class="w-5 h-5"></i>
+      </div>
+      <div>
+        <h1 class="text-lg font-bold tracking-tight flex items-center gap-2">
+          AETHERKITE TERMINAL
+          <span class="text-xs px-2 py-0.5 rounded font-medium bg-emerald-950 text-emerald-400 border border-emerald-800/60" id="badge-mode">PAPER MODE</span>
+        </h1>
+        <p class="text-xs text-slate-400 flex items-center gap-2">
+          <span>NSE / Zerodha Kite Architecture</span>
+          <span>•</span>
+          <span id="market-time" class="mono text-slate-300">Syncing time...</span>
+        </p>
+      </div>
+    </div>
+
+    <!-- HEADER CONTROLS -->
+    <div class="flex items-center gap-3">
+      <!-- Status Pills -->
+      <div class="hidden sm:flex items-center gap-2 text-xs">
+        <span class="px-2.5 py-1 rounded-full bg-slate-800 border border-slate-700 flex items-center gap-1.5" id="gemini-status">
+          <span class="w-2 h-2 rounded-full bg-amber-400"></span> Gemini AI
+        </span>
+        <span class="px-2.5 py-1 rounded-full bg-slate-800 border border-slate-700 flex items-center gap-1.5" id="market-status">
+          <span class="w-2 h-2 rounded-full bg-emerald-400"></span> Market Open
+        </span>
+      </div>
+
+      <!-- 1-Click Zerodha Login Button -->
+      <button onclick="loginWithZerodha()" id="btn-kite-login" class="px-3 py-1.5 rounded-lg bg-orange-600 hover:bg-orange-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-orange-600/20 transition">
+        <i data-lucide="key" class="w-4 h-4"></i> Connect Zerodha
+      </button>
+
+      <!-- Settings Button -->
+      <button onclick="openSettingsModal()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition">
+        <i data-lucide="settings" class="w-4 h-4"></i> Settings
+      </button>
+
+      <!-- Scan Watchlist Button -->
+      <button onclick="triggerScan()" id="btn-scan" class="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-lg shadow-blue-500/20 transition">
+        <i data-lucide="refresh-cw" class="w-4 h-4" id="scan-icon"></i> Scan Radar
+      </button>
+
+      <!-- Emergency Kill Switch -->
+      <button onclick="triggerKillSwitch()" class="px-4 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-rose-600/30 transition">
+        <i data-lucide="alert-octagon" class="w-4 h-4"></i> KILL SWITCH
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN BODY -->
+  <main class="flex-1 p-6 max-w-7xl w-full mx-auto space-y-6">
+
+    <!-- SENSEX & MARKET PULSE TICKER BAR -->
+    <div class="bg-slate-900 border border-slate-800 rounded-xl p-3.5 flex flex-wrap items-center justify-between gap-4 shadow-xl">
+      <div class="flex items-center gap-6 flex-wrap">
+        <!-- BSE SENSEX Card -->
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-lg bg-orange-500/10 border border-orange-500/30 flex items-center justify-center text-orange-400 font-bold text-xs">
+            BSE
+          </div>
+          <div>
+            <div class="text-[11px] text-slate-400 font-medium flex items-center gap-1.5">
+              <span>SENSEX</span>
+              <span class="text-[10px] text-slate-500 font-normal">Benchmark Index</span>
+            </div>
+            <div class="flex items-center gap-2 mt-0.5">
+              <span class="text-base font-bold mono text-white" id="ticker-sensex-price">Loading...</span>
+              <span class="text-xs font-semibold mono" id="ticker-sensex-change">--</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="hidden md:block h-8 w-px bg-slate-800"></div>
+
+        <!-- NSE NIFTY 50 Card -->
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-lg bg-blue-500/10 border border-blue-500/30 flex items-center justify-center text-blue-400 font-bold text-xs">
+            NSE
+          </div>
+          <div>
+            <div class="text-[11px] text-slate-400 font-medium flex items-center gap-1.5">
+              <span>NIFTY 50</span>
+              <span class="text-[10px] text-slate-500 font-normal">Macro Trend</span>
+            </div>
+            <div class="flex items-center gap-2 mt-0.5">
+              <span class="text-base font-bold mono text-white" id="ticker-nifty-price">Loading...</span>
+              <span class="text-xs font-semibold mono" id="ticker-nifty-change">--</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Controls: Candle Countdown & Audio Toggle & Macro Regime -->
+      <div class="flex items-center flex-wrap gap-3">
+        <!-- 15m Candle Countdown Pill -->
+        <div class="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border bg-slate-950 text-slate-300 border-slate-800">
+          <i data-lucide="timer" class="w-3.5 h-3.5 text-blue-400"></i>
+          <span>Next Candle Close:</span>
+          <span class="mono font-bold text-white text-xs" id="candle-timer">--:--</span>
+        </div>
+
+        <!-- Audio Alert Toggle Pill -->
+        <button onclick="toggleAudioAlerts()" id="btn-audio-toggle" class="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700 transition" title="Play audible chime when a new BUY signal appears">
+          <i data-lucide="volume-2" class="w-3.5 h-3.5 text-slate-400" id="audio-icon"></i>
+          <span id="audio-label">Sound Alerts: Off</span>
+        </button>
+
+        <!-- Macro Market Regime Tag -->
+        <div class="flex items-center gap-1.5">
+          <span class="px-3 py-1 rounded-full text-xs font-bold border bg-slate-950 text-slate-300 border-slate-700" id="ticker-regime-badge">
+            Analyzing Market Pulse...
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- KPI SUMMARY CARDS -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <!-- Cash Balance -->
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+        <div class="text-xs font-medium text-slate-400 flex items-center justify-between">
+          <span>Available Cash</span>
+          <i data-lucide="wallet" class="w-4 h-4 text-emerald-400"></i>
+        </div>
+        <div class="mt-2 text-2xl font-bold mono" id="kpi-cash">₹1,00,000.00</div>
+        <div class="mt-1 text-xs text-slate-500">Liquid capital for new positions</div>
+      </div>
+
+      <!-- Unrealized P&L -->
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+        <div class="text-xs font-medium text-slate-400 flex items-center justify-between">
+          <span>Today's Live P&L</span>
+          <i data-lucide="trending-up" class="w-4 h-4 text-blue-400"></i>
+        </div>
+        <div class="mt-2 text-2xl font-bold mono" id="kpi-pnl">₹0.00</div>
+        <div class="mt-1 text-xs text-slate-500" id="kpi-pnl-sub">0 open positions active</div>
+      </div>
+
+      <!-- Risk Per Trade -->
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+        <div class="text-xs font-medium text-slate-400 flex items-center justify-between">
+          <span>Risk Rule</span>
+          <i data-lucide="shield-check" class="w-4 h-4 text-purple-400"></i>
+        </div>
+        <div class="mt-2 text-2xl font-bold mono" id="kpi-risk">1.0% / Trade</div>
+        <div class="mt-1 text-xs text-slate-500">Max loss capped at 1.5x ATR</div>
+      </div>
+
+      <!-- Strategy State -->
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+        <div class="text-xs font-medium text-slate-400 flex items-center justify-between">
+          <span>System Guard</span>
+          <i data-lucide="clock" class="w-4 h-4 text-amber-400"></i>
+        </div>
+        <div class="mt-2 text-base font-bold text-slate-200" id="kpi-guard">09:45 AM Filter Active</div>
+        <div class="mt-1 text-xs text-slate-500">Auto-Squareoff at 15:15 IST</div>
+      </div>
+    </div>
+
+    <!-- HALT BANNER (HIDDEN BY DEFAULT) -->
+    <div id="halt-banner" class="hidden p-4 rounded-xl bg-rose-950/80 border border-rose-800 text-rose-200 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <i data-lucide="alert-triangle" class="w-6 h-6 text-rose-400"></i>
+        <div>
+          <div class="font-bold text-sm">EMERGENCY KILL SWITCH ACTIVATED</div>
+          <div class="text-xs text-rose-300">All open orders are flattened. Automated execution is halted.</div>
+        </div>
+      </div>
+      <button onclick="resumeSystem()" class="px-4 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold">
+        Resume Engine
+      </button>
+    </div>
+
+    <!-- LIVE WATCHLIST & AI RADAR -->
+    <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-xl">
+      <div class="px-5 py-4 border-b border-slate-800 flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <h2 class="text-sm font-bold tracking-tight text-white flex items-center gap-2">
+            <i data-lucide="scan" class="w-4 h-4 text-blue-400"></i>
+            Live Signal Radar & AI Gatekeeper
+          </h2>
+          <p class="text-xs text-slate-400">Deterministic Closed-Candle Indicators paired with Gemini 3.8 Flash Veto</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <input type="text" id="radar-search" oninput="filterRadar()" placeholder="Search 50 stocks..." class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-500 w-36 focus:w-48 transition-all">
+          <select id="radar-filter" onchange="filterRadar()" class="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-300">
+            <option value="ALL">All 50 Stocks</option>
+            <option value="BUY_ONLY">🎯 Only Buy Triggers</option>
+          </select>
+          <span class="text-xs text-slate-500 mono hidden sm:inline" id="last-scan-time">Ready to scan</span>
+        </div>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs">
+          <thead class="bg-slate-950/60 text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-800">
+            <tr>
+              <th class="px-4 py-3">Symbol</th>
+              <th class="px-4 py-3">Price</th>
+              <th class="px-4 py-3">200 EMA Trend</th>
+              <th class="px-4 py-3">MACD Momentum</th>
+              <th class="px-4 py-3">RSI (14)</th>
+              <th class="px-4 py-3">Quant Signal</th>
+              <th class="px-4 py-3">AI Veto Status</th>
+              <th class="px-4 py-3">Risk & Sizing</th>
+              <th class="px-4 py-3 text-right">Action</th>
+            </tr>
+          </thead>
+          <tbody id="radar-tbody" class="divide-y divide-slate-800">
+            <tr>
+              <td colspan="9" class="px-4 py-8 text-center text-slate-500">
+                Click <strong class="text-blue-400">Scan Radar</strong> above to evaluate watchlist against live market feeds.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ACTIVE POSITIONS & ORDERS -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <!-- Active Positions Card -->
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+          <h3 class="text-sm font-bold text-white flex items-center gap-2">
+            <i data-lucide="briefcase" class="w-4 h-4 text-emerald-400"></i> Open Positions (MIS)
+          </h3>
+          <span class="text-xs text-slate-400" id="positions-count">0 Active</span>
+        </div>
+        <div id="positions-list" class="space-y-3">
+          <div class="text-xs text-slate-500 text-center py-6">No open intraday positions.</div>
+        </div>
+      </div>
+
+      <!-- Trade Execution History -->
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+          <h3 class="text-sm font-bold text-white flex items-center gap-2">
+            <i data-lucide="list-ordered" class="w-4 h-4 text-purple-400"></i> Trade Audit Log
+          </h3>
+          <span class="text-xs text-slate-400">Execution History</span>
+        </div>
+        <div id="orders-list" class="space-y-2 max-h-64 overflow-y-auto pr-1">
+          <div class="text-xs text-slate-500 text-center py-6">No orders placed in this session.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TRADING JOURNAL & PERFORMANCE ANALYTICS -->
+    <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-xl space-y-4 p-5">
+      <div class="flex items-center justify-between flex-wrap gap-2 border-b border-slate-800 pb-4">
+        <div>
+          <h2 class="text-sm font-bold tracking-tight text-white flex items-center gap-2">
+            <i data-lucide="book-open" class="w-4 h-4 text-emerald-400"></i>
+            Quantitative & Psychological Trading Journal
+          </h2>
+          <p class="text-xs text-slate-400">Audit trail with Quant Entry Rationale, Gemini AI Veto Log & Realized P&L</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <a href="/api/journal/export" download class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition text-slate-300 hover:text-white">
+            <i data-lucide="download" class="w-4 h-4"></i> Export CSV
+          </a>
+          <button onclick="fetchJournal()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition text-slate-300">
+            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Refresh Journal
+          </button>
+        </div>
+      </div>
+
+      <!-- Journal Analytics Ribbon -->
+      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div class="bg-slate-950 border border-slate-800/80 rounded-lg p-3">
+          <div class="text-[10px] text-slate-400 uppercase font-semibold">Total Closed Trades</div>
+          <div class="text-lg font-bold mono mt-1" id="jnl-trades">0</div>
+        </div>
+        <div class="bg-slate-950 border border-slate-800/80 rounded-lg p-3">
+          <div class="text-[10px] text-slate-400 uppercase font-semibold">Win Rate</div>
+          <div class="text-lg font-bold mono mt-1 text-emerald-400" id="jnl-winrate">0.0%</div>
+        </div>
+        <div class="bg-slate-950 border border-slate-800/80 rounded-lg p-3">
+          <div class="text-[10px] text-slate-400 uppercase font-semibold">Profit Factor</div>
+          <div class="text-lg font-bold mono mt-1 text-blue-400" id="jnl-pf">1.00</div>
+        </div>
+        <div class="bg-slate-950 border border-slate-800/80 rounded-lg p-3">
+          <div class="text-[10px] text-slate-400 uppercase font-semibold">Net Realized P&L</div>
+          <div class="text-lg font-bold mono mt-1" id="jnl-realized">₹0.00</div>
+        </div>
+        <div class="bg-slate-950 border border-slate-800/80 rounded-lg p-3">
+          <div class="text-[10px] text-slate-400 uppercase font-semibold">Avg Win</div>
+          <div class="text-lg font-bold mono mt-1 text-emerald-400" id="jnl-avgwin">₹0.00</div>
+        </div>
+        <div class="bg-slate-950 border border-slate-800/80 rounded-lg p-3">
+          <div class="text-[10px] text-slate-400 uppercase font-semibold">Avg Loss</div>
+          <div class="text-lg font-bold mono mt-1 text-rose-400" id="jnl-avgloss">₹0.00</div>
+        </div>
+      </div>
+
+      <!-- Journal Entries Table -->
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs">
+          <thead class="bg-slate-950/60 text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-800">
+            <tr>
+              <th class="px-3 py-2.5">Trade ID & Symbol</th>
+              <th class="px-3 py-2.5">Entry Time</th>
+              <th class="px-3 py-2.5">Execution</th>
+              <th class="px-3 py-2.5">Exit & Reason</th>
+              <th class="px-3 py-2.5">Quant & AI Rationale</th>
+              <th class="px-3 py-2.5">Realized P&L</th>
+              <th class="px-3 py-2.5">Status</th>
+              <th class="px-3 py-2.5">Trader Reflection / Notes</th>
+            </tr>
+          </thead>
+          <tbody id="journal-tbody" class="divide-y divide-slate-800">
+            <tr>
+              <td colspan="8" class="px-3 py-6 text-center text-slate-500">
+                No trades recorded in journal yet. Executed trades will automatically log here with their AI rationale.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- SETTINGS MODAL -->
+  <div id="settings-modal" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-5 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <h3 class="text-base font-bold text-white flex items-center gap-2">
+          <i data-lucide="sliders" class="w-5 h-5 text-blue-400"></i> System Configuration
+        </h3>
+        <button onclick="closeSettingsModal()" class="text-slate-400 hover:text-white">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="space-y-4 text-xs">
+        <div>
+          <label class="block text-slate-400 font-semibold mb-1">Trading Mode</label>
+          <select id="cfg-mode" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white">
+            <option value="PAPER">Paper Trading (Safe Simulation)</option>
+            <option value="LIVE">Live Trading (Zerodha Kite)</option>
+          </select>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-slate-400 font-semibold mb-1">Capital (₹)</label>
+            <input type="number" id="cfg-capital" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white mono" value="100000">
+          </div>
+          <div>
+            <label class="block text-slate-400 font-semibold mb-1">Risk per Trade (%)</label>
+            <input type="number" id="cfg-risk" step="0.1" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white mono" value="1.0">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-slate-400 font-semibold mb-1">Google Gemini API Key</label>
+          <input type="password" id="cfg-gemini" placeholder="AIzaSy..." class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white mono">
+          <span class="text-[10px] text-slate-500">Powers real-time news sentiment and trade veto.</span>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-slate-400 font-semibold mb-1">Kite API Key</label>
+            <input type="password" id="cfg-kite-key" placeholder="Zerodha App Key" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white mono">
+          </div>
+          <div>
+            <label class="block text-slate-400 font-semibold mb-1">Kite API Secret</label>
+            <input type="password" id="cfg-kite-secret" placeholder="Zerodha App Secret" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white mono">
+          </div>
+        </div>
+        <p class="text-[10px] text-slate-400">
+          💡 <strong>1-Click Setup:</strong> In your Kite Developer App, set <strong>Redirect URL</strong> to: <code class="text-blue-400">http://127.0.0.1:8000/api/kite-callback</code>. Then you only need to click "Connect Zerodha" each morning!
+        </p>
+
+        <div class="border-t border-slate-800 pt-3 space-y-2">
+          <div class="flex items-center justify-between">
+            <label class="text-slate-300 font-bold text-xs flex items-center gap-1.5">
+              <i data-lucide="bell" class="w-3.5 h-3.5 text-blue-400"></i>
+              Telegram Trade Alerts (Mobile / Desktop)
+            </label>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="cfg-telegram-enabled" class="sr-only peer">
+              <div class="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+            </label>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-slate-400 font-semibold mb-1 text-[11px]">Bot Token</label>
+              <input type="password" id="cfg-telegram-token" placeholder="123456:ABC-DEF..." class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white mono text-xs">
+            </div>
+            <div>
+              <label class="block text-slate-400 font-semibold mb-1 text-[11px]">Chat ID</label>
+              <input type="text" id="cfg-telegram-chat" placeholder="e.g. 987654321" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white mono text-xs">
+            </div>
+          </div>
+          <div class="flex items-center justify-between pt-1">
+            <span class="text-[10px] text-slate-500">Get free token from @BotFather on Telegram.</span>
+            <button type="button" onclick="testTelegramPing()" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-blue-400 font-semibold text-[11px] border border-slate-700 transition">
+              Test Alert Ping
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-slate-400 font-semibold mb-1">Watchlist (Comma-separated)</label>
+          <input type="text" id="cfg-watchlist" value="RELIANCE, TCS, HDFCBANK, INFY, ICICIBANK, TATAMOTORS" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white uppercase mono">
+        </div>
+      </div>
+
+      <div class="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+        <button onclick="closeSettingsModal()" class="px-4 py-2 rounded-lg bg-slate-800 text-slate-300 font-semibold text-xs">Cancel</button>
+        <button onclick="saveSettings()" class="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs">Save Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- JAVASCRIPT APP LOGIC -->
+  <script>
+    let currentScanResults = [];
+
+    async function fetchStatus() {
+      try {
+        const res = await fetch('/api/status');
+        const data = await res.json();
+
+        // Update Clock & Status
+        document.getElementById('market-time').innerText = data.market.ist_time;
+        document.getElementById('badge-mode').innerText = data.config.trading_mode + " MODE";
+        document.getElementById('badge-mode').className = data.config.trading_mode === 'LIVE' 
+          ? "text-xs px-2 py-0.5 rounded font-medium bg-rose-950 text-rose-400 border border-rose-800"
+          : "text-xs px-2 py-0.5 rounded font-medium bg-emerald-950 text-emerald-400 border border-emerald-800/60";
+
+        // Gemini Status Pill
+        const geminiPill = document.getElementById('gemini-status');
+        if (data.config.gemini_connected) {
+          geminiPill.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400"></span> Gemini 3.8 Flash`;
+        } else {
+          geminiPill.innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-400"></span> Gemini (Simulated)`;
+        }
+
+        // Market Open Pill
+        const mktPill = document.getElementById('market-status');
+        if (data.market.is_open) {
+          mktPill.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400"></span> Market Open`;
+        } else {
+          mktPill.innerHTML = `<span class="w-2 h-2 rounded-full bg-slate-500"></span> Market Closed`;
+        }
+
+        // Update Sensex & Nifty Benchmark Tickers
+        if (data.indices) {
+          const s = data.indices.sensex;
+          if (s && s.price > 0) {
+            document.getElementById('ticker-sensex-price').innerText = s.price.toLocaleString('en-IN', {minimumFractionDigits: 2});
+            const sSign = s.change >= 0 ? '+' : '';
+            const sChgEl = document.getElementById('ticker-sensex-change');
+            sChgEl.innerText = `${sSign}${s.change.toFixed(2)} (${sSign}${s.pct_change.toFixed(2)}%)`;
+            sChgEl.className = s.change >= 0 ? "text-xs font-semibold mono text-emerald-400" : "text-xs font-semibold mono text-rose-400";
+          }
+
+          const n = data.indices.nifty;
+          if (n && n.price > 0) {
+            document.getElementById('ticker-nifty-price').innerText = n.price.toLocaleString('en-IN', {minimumFractionDigits: 2});
+            const nSign = n.change >= 0 ? '+' : '';
+            const nChgEl = document.getElementById('ticker-nifty-change');
+            nChgEl.innerText = `${nSign}${n.change.toFixed(2)} (${nSign}${n.pct_change.toFixed(2)}%)`;
+            nChgEl.className = n.change >= 0 ? "text-xs font-semibold mono text-emerald-400" : "text-xs font-semibold mono text-rose-400";
+          }
+
+          // Macro Market Regime Badge
+          const regimeBadge = document.getElementById('ticker-regime-badge');
+          const avgPct = ((s ? s.pct_change : 0) + (n ? n.pct_change : 0)) / 2;
+          if (avgPct >= 0.20) {
+            regimeBadge.innerText = "BULLISH TREND (Aligned for Longs)";
+            regimeBadge.className = "px-3 py-1 rounded-full text-xs font-bold border bg-emerald-950 text-emerald-300 border-emerald-800";
+          } else if (avgPct <= -0.20) {
+            regimeBadge.innerText = "BEARISH DRAG (Caution on Longs)";
+            regimeBadge.className = "px-3 py-1 rounded-full text-xs font-bold border bg-rose-950 text-rose-300 border-rose-800";
+          } else {
+            regimeBadge.innerText = "RANGE-BOUND / CONSOLIDATING";
+            regimeBadge.className = "px-3 py-1 rounded-full text-xs font-bold border bg-slate-800 text-amber-300 border-slate-700";
+          }
+        }
+
+        // KPIs
+        document.getElementById('kpi-cash').innerText = '₹' + data.portfolio.cash_balance.toLocaleString('en-IN', {minimumFractionDigits: 2});
+        
+        const pnl = data.portfolio.unrealized_pnl;
+        const pnlEl = document.getElementById('kpi-pnl');
+        pnlEl.innerText = (pnl >= 0 ? '+₹' : '-₹') + Math.abs(pnl).toLocaleString('en-IN', {minimumFractionDigits: 2});
+        pnlEl.className = pnl >= 0 ? "mt-2 text-2xl font-bold mono text-emerald-400" : "mt-2 text-2xl font-bold mono text-rose-400";
+        document.getElementById('kpi-pnl-sub').innerText = `${data.portfolio.open_positions_count} open positions active`;
+
+        document.getElementById('kpi-risk').innerText = `${data.config.risk_per_trade_pct * 100}% / Trade`;
+
+        // Halt Banner
+        const haltBanner = document.getElementById('halt-banner');
+        if (data.portfolio.system_halted) {
+          haltBanner.classList.remove('hidden');
+        } else {
+          haltBanner.classList.add('hidden');
+        }
+      } catch (err) {
+        console.error('Status fetch error:', err);
+      }
+    }
+
+    async function triggerScan() {
+      const btn = document.getElementById('btn-scan');
+      const icon = document.getElementById('scan-icon');
+      icon.classList.add('animate-spin');
+      btn.disabled = true;
+
+      try {
+        const res = await fetch('/api/scan');
+        const data = await res.json();
+        currentScanResults = data.results;
+        document.getElementById('last-scan-time').innerText = `Last scanned: ${data.scan_timestamp}`;
+        renderRadar(data.results);
+
+        // If audio alerts are ON, check for any newly detected BUY signals
+        if (audioAlertsEnabled && data.results) {
+          const buyItems = data.results.filter(r => r.quant_signal === 'BUY' && (!r.ai_verdict || r.ai_verdict.approve_trade));
+          const hasNewBuy = buyItems.some(item => !knownBuySymbols.has(item.symbol));
+          if (hasNewBuy) {
+            playTradeChime();
+          }
+          knownBuySymbols = new Set(buyItems.map(b => b.symbol));
+        }
+      } catch (err) {
+        alert('Scan failed: ' + err.message);
+      } finally {
+        icon.classList.remove('animate-spin');
+        btn.disabled = false;
+      }
+    }
+
+    function filterRadar() {
+      const q = (document.getElementById('radar-search')?.value || '').trim().toUpperCase();
+      const filterMode = document.getElementById('radar-filter')?.value || 'ALL';
+
+      let filtered = currentScanResults.filter(item => {
+        const matchesQuery = !q || item.symbol.toUpperCase().includes(q);
+        const matchesFilter = (filterMode === 'ALL') || (item.quant_signal === 'BUY');
+        return matchesQuery && matchesFilter;
+      });
+      renderRadar(filtered);
+    }
+
+    function renderRadar(results) {
+      const tbody = document.getElementById('radar-tbody');
+      tbody.innerHTML = '';
+
+      if (!results || results.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="9" class="px-4 py-6 text-center text-slate-500">No data returned.</td></tr>`;
+        return;
+      }
+
+      results.forEach((r, idx) => {
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-800/40 transition";
+
+        // Trend Badge
+        const trendBadge = r.trend_bullish 
+          ? `<span class="px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 font-semibold">BULLISH (>200 EMA)</span>`
+          : `<span class="px-2 py-0.5 rounded bg-slate-800 text-slate-400">BEARISH</span>`;
+
+        // MACD Badge
+        const macdBadge = r.macd_crossover
+          ? `<span class="text-emerald-400 font-bold">CROSSOVER UP</span>`
+          : `<span class="text-slate-400">No Cross</span>`;
+
+        // Quant Signal Badge
+        const quantBadge = r.quant_signal === 'BUY'
+          ? `<span class="px-2.5 py-1 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold">BUY TRIGGER</span>`
+          : `<span class="text-slate-400 font-medium">NEUTRAL</span>`;
+
+        // AI Verdict
+        let aiBadge = `<span class="text-slate-500 italic">Standby</span>`;
+        if (r.ai_verdict) {
+          if (r.ai_verdict.approve_trade) {
+            aiBadge = `<div class="space-y-0.5">
+              <span class="px-2 py-0.5 rounded bg-emerald-900/60 text-emerald-300 font-bold border border-emerald-700">APPROVED (${Math.round(r.ai_verdict.confidence_score * 100)}%)</span>
+              <div class="text-[10px] text-slate-400 max-w-xs truncate" title="${r.ai_verdict.reasoning}">${r.ai_verdict.reasoning}</div>
+            </div>`;
+          } else {
+            aiBadge = `<div class="space-y-0.5">
+              <span class="px-2 py-0.5 rounded bg-rose-950 text-rose-300 font-bold border border-rose-800">VETOED (${r.ai_verdict.risk_level})</span>
+              <div class="text-[10px] text-rose-300 max-w-xs truncate" title="${r.ai_verdict.reasoning}">${r.ai_verdict.reasoning}</div>
+            </div>`;
+          }
+        }
+
+        // Sizing
+        let sizingInfo = `<span class="text-slate-500">—</span>`;
+        if (r.sizing && r.sizing.shares > 0) {
+          sizingInfo = `<div class="mono text-[11px] leading-tight">
+            <span class="font-bold text-white">${r.sizing.shares} shares</span>
+            <div class="text-slate-400">SL: ₹${r.sizing.stop_loss} | TP: ₹${r.sizing.take_profit}</div>
+          </div>`;
+        }
+
+        // Action Button
+        let actionBtn = `<span class="text-slate-600 text-xs">Waiting</span>`;
+        if (r.quant_signal === 'BUY' && (!r.ai_verdict || r.ai_verdict.approve_trade)) {
+          actionBtn = `<button onclick="executeConfirmedTrade('${r.symbol}')" class="px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md shadow-emerald-600/30">
+            Execute Buy
+          </button>`;
+        }
+
+        tr.innerHTML = `
+          <td class="px-4 py-3 font-bold text-white mono">${r.symbol}</td>
+          <td class="px-4 py-3 mono font-semibold">₹${r.price.toFixed(2)}</td>
+          <td class="px-4 py-3">${trendBadge}</td>
+          <td class="px-4 py-3">${macdBadge}</td>
+          <td class="px-4 py-3 mono">${r.rsi || '—'}</td>
+          <td class="px-4 py-3">${quantBadge}</td>
+          <td class="px-4 py-3">${aiBadge}</td>
+          <td class="px-4 py-3">${sizingInfo}</td>
+          <td class="px-4 py-3 text-right">${actionBtn}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+      lucide.createIcons();
+    }
+
+    async function executeConfirmedTrade(symbol) {
+      const item = currentScanResults.find(s => s.symbol === symbol);
+      if (!item) {
+        alert('Stock not found in radar results.');
+        return;
+      }
+
+      if (!confirm(`Execute BUY for ${item.sizing.shares} shares of ${item.symbol} at ₹${item.price}?\n\nStop Loss: ₹${item.sizing.stop_loss}\nTake Profit: ₹${item.sizing.take_profit}\nRisk: ₹${item.sizing.risk_inr}`)) {
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/execute-trade', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            symbol: item.symbol,
+            shares: item.sizing.shares,
+            price: item.price,
+            stop_loss: item.sizing.stop_loss,
+            take_profit: item.sizing.take_profit,
+            quant_rationale: `200 EMA Trend: ${item.trend_bullish ? 'Bullish' : 'Neutral'} | MACD Cross | RSI: ${item.rsi}`,
+            ai_rationale: item.ai_verdict ? item.ai_verdict.reasoning : "Technical setup aligned with market regime.",
+            ai_confidence: item.ai_verdict ? Math.round(item.ai_verdict.confidence_score * 100) : 85
+          })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          alert(`Order placed successfully! Order ID: ${data.order.order_id}`);
+          fetchStatus();
+          fetchPositions();
+          fetchJournal();
+        } else {
+          alert(`Order failed: ${data.detail}`);
+        }
+      } catch (err) {
+        alert('Network error: ' + err.message);
+      }
+    }
+
+    async function fetchPositions() {
+      try {
+        const res = await fetch('/api/positions');
+        const data = await res.json();
+        
+        // Render Positions
+        const pList = document.getElementById('positions-list');
+        pList.innerHTML = '';
+        document.getElementById('positions-count').innerText = `${data.positions.length} Active`;
+
+        if (data.positions.length === 0) {
+          pList.innerHTML = `<div class="text-xs text-slate-500 text-center py-6">No open intraday positions.</div>`;
+        } else {
+          data.positions.forEach(p => {
+            const el = document.createElement('div');
+            el.className = "p-3 rounded-lg bg-slate-950 border border-slate-800 flex items-center justify-between";
+            el.innerHTML = `
+              <div>
+                <div class="font-bold text-white mono flex items-center gap-2">
+                  ${p.symbol}
+                  <span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-400 font-semibold">${p.quantity} QTY</span>
+                </div>
+                <div class="text-[11px] text-slate-400 mono">Entry: ₹${p.entry_price} | SL: ₹${p.stop_loss} | TP: ₹${p.take_profit}</div>
+              </div>
+              <div class="flex items-center gap-3">
+                <div class="text-right">
+                  <div class="font-bold mono text-emerald-400">₹${p.unrealized_pnl >= 0 ? '+' : ''}${p.unrealized_pnl.toFixed(2)}</div>
+                  <div class="text-[10px] text-slate-500">${p.entry_time}</div>
+                </div>
+                <button onclick="closeSinglePosition('${p.symbol}')" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-rose-900/60 border border-slate-700 hover:border-rose-700 text-rose-300 font-bold text-xs transition">
+                  Exit
+                </button>
+              </div>
+            `;
+            pList.appendChild(el);
+          });
+        }
+
+        // Render Order History
+        const oList = document.getElementById('orders-list');
+        oList.innerHTML = '';
+        if (data.orders.length === 0) {
+          oList.innerHTML = `<div class="text-xs text-slate-500 text-center py-6">No orders placed in this session.</div>`;
+        } else {
+          data.orders.forEach(o => {
+            const el = document.createElement('div');
+            el.className = "text-xs p-2 rounded bg-slate-950/70 border border-slate-800/80 flex items-center justify-between";
+            el.innerHTML = `
+              <div>
+                <span class="font-bold text-white mono">${o.symbol}</span>
+                <span class="text-slate-400"> • ${o.action} ${o.quantity} @ ₹${o.price}</span>
+              </div>
+              <div class="mono text-slate-400 text-[10px]">${o.timestamp}</div>
+            `;
+            oList.appendChild(el);
+          });
+        }
+      } catch (err) {
+        console.error('Failed to fetch positions:', err);
+      }
+    }
+
+    async function closeSinglePosition(symbol) {
+      if (!confirm(`Close open position for ${symbol}?`)) return;
+      try {
+        const res = await fetch('/api/close-position', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ symbol: symbol, reason: 'MANUAL_DISCRETIONARY_EXIT' })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          alert(`Position closed. Realized P&L: ₹${data.realized_pnl}`);
+          fetchStatus();
+          fetchPositions();
+          fetchJournal();
+        } else {
+          alert('Failed to close position: ' + data.detail);
+        }
+      } catch (err) {
+        alert('Error: ' + err.message);
+      }
+    }
+
+    async function fetchJournal() {
+      try {
+        const res = await fetch('/api/journal');
+        const data = await res.json();
+        const a = data.analytics;
+
+        // Render analytics ribbon
+        document.getElementById('jnl-trades').innerText = a.total_trades;
+        document.getElementById('jnl-winrate').innerText = a.win_rate_pct.toFixed(1) + '%';
+        document.getElementById('jnl-pf').innerText = a.profit_factor.toFixed(2);
+        
+        const realEl = document.getElementById('jnl-realized');
+        realEl.innerText = (a.total_realized_pnl >= 0 ? '+₹' : '-₹') + Math.abs(a.total_realized_pnl).toLocaleString('en-IN', {minimumFractionDigits: 2});
+        realEl.className = a.total_realized_pnl >= 0 ? "text-lg font-bold mono mt-1 text-emerald-400" : "text-lg font-bold mono mt-1 text-rose-400";
+
+        document.getElementById('jnl-avgwin').innerText = '₹' + a.avg_win.toLocaleString('en-IN', {minimumFractionDigits: 2});
+        document.getElementById('jnl-avgloss').innerText = '₹' + a.avg_loss.toLocaleString('en-IN', {minimumFractionDigits: 2});
+
+        // Render table
+        const tbody = document.getElementById('journal-tbody');
+        tbody.innerHTML = '';
+
+        if (!data.trades || data.trades.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="8" class="px-3 py-6 text-center text-slate-500">No trades recorded in journal yet. Executed trades will automatically log here with their AI rationale.</td></tr>`;
+          return;
+        }
+
+        data.trades.forEach(t => {
+          const tr = document.createElement('tr');
+          tr.className = "hover:bg-slate-800/40 transition";
+
+          const pnlColor = t.realized_pnl > 0 ? "text-emerald-400 font-bold" : (t.realized_pnl < 0 ? "text-rose-400 font-bold" : "text-slate-400");
+          const pnlSign = t.realized_pnl > 0 ? "+" : "";
+
+          let statusBadge = `<span class="px-2 py-0.5 rounded bg-blue-950 text-blue-300 font-semibold border border-blue-800">OPEN</span>`;
+          if (t.status === 'CLOSED') {
+            if (t.realized_pnl > 0) {
+              statusBadge = `<span class="px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 font-bold border border-emerald-800">PROFIT</span>`;
+            } else if (t.realized_pnl < 0) {
+              statusBadge = `<span class="px-2 py-0.5 rounded bg-rose-950 text-rose-300 font-bold border border-rose-800">LOSS</span>`;
+            } else {
+              statusBadge = `<span class="px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-semibold">EVEN</span>`;
+            }
+          }
+
+          tr.innerHTML = `
+            <td class="px-3 py-2.5 font-bold text-white mono">
+              <div>${t.symbol}</div>
+              <div class="text-[10px] text-slate-500 font-normal">${t.trade_id}</div>
+            </td>
+            <td class="px-3 py-2.5 mono text-slate-400 text-[11px]">${t.entry_time}</td>
+            <td class="px-3 py-2.5 mono">
+              <span class="font-semibold text-white">${t.quantity} shares</span> @ ₹${t.entry_price.toFixed(2)}
+              <div class="text-[10px] text-slate-400">SL: ₹${t.stop_loss} | TP: ₹${t.take_profit}</div>
+            </td>
+            <td class="px-3 py-2.5 mono">
+              ${t.exit_price ? `₹${t.exit_price.toFixed(2)} <span class="text-[10px] text-slate-400">(${t.exit_reason || 'EXIT'})</span>` : '<span class="text-slate-500">—</span>'}
+              ${t.exit_time ? `<div class="text-[10px] text-slate-500">${t.exit_time}</div>` : ''}
+            </td>
+            <td class="px-3 py-2.5 max-w-xs">
+              <div class="text-[11px] text-slate-300 font-medium">${t.quant_rationale || 'Quant Rule'}</div>
+              <div class="text-[10px] text-slate-400 truncate mt-0.5" title="${t.ai_rationale}">${t.ai_rationale}</div>
+            </td>
+            <td class="px-3 py-2.5 mono ${pnlColor}">
+              ${t.status === 'CLOSED' ? `${pnlSign}₹${t.realized_pnl.toFixed(2)} <span class="text-[10px]">(${pnlSign}${t.return_pct}%)</span>` : '<span class="text-slate-500">Active</span>'}
+            </td>
+            <td class="px-3 py-2.5">${statusBadge}</td>
+            <td class="px-3 py-2.5">
+              <input type="text" value="${t.notes || ''}" placeholder="Add reflection..." onchange="saveTradeNote('${t.trade_id}', this.value)" class="bg-slate-950 border border-slate-800 rounded px-2 py-1 text-[11px] text-white w-40 focus:w-56 transition-all placeholder-slate-600">
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+      } catch (err) {
+        console.error('Failed to fetch journal:', err);
+      }
+    }
+
+    async function saveTradeNote(tradeId, noteText) {
+      try {
+        await fetch('/api/journal/note', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ trade_id: tradeId, notes: noteText })
+        });
+      } catch (err) {
+        console.error('Failed to save note:', err);
+      }
+    }
+
+    async function triggerKillSwitch() {
+      if (!confirm("⚠️ EMERGENCY KILL SWITCH WARNING:\n\nAre you sure you want to halt the system and immediately flatten all open positions?")) {
+        return;
+      }
+      try {
+        const res = await fetch('/api/kill-switch', { method: 'POST' });
+        const data = await res.json();
+        alert(data.message);
+        fetchStatus();
+        fetchPositions();
+      } catch (err) {
+        alert('Kill switch failed: ' + err.message);
+      }
+    }
+
+    async function resumeSystem() {
+      try {
+        const res = await fetch('/api/resume-system', { method: 'POST' });
+        fetchStatus();
+      } catch (err) {
+        alert('Resume failed: ' + err.message);
+      }
+    }
+
+    // AUDIO ALERT ENGINE (Web Audio API Synthesizer - No external mp3 files required)
+    let audioAlertsEnabled = false;
+    let knownBuySymbols = new Set();
+
+    function toggleAudioAlerts() {
+      audioAlertsEnabled = !audioAlertsEnabled;
+      const btn = document.getElementById('btn-audio-toggle');
+      const icon = document.getElementById('audio-icon');
+      const lbl = document.getElementById('audio-label');
+      
+      if (audioAlertsEnabled) {
+        btn.className = "flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border bg-emerald-950 text-emerald-300 border-emerald-800 transition shadow-sm";
+        icon.className = "w-3.5 h-3.5 text-emerald-400";
+        lbl.innerText = "Sound Alerts: ON";
+        playTradeChime(); // test chime on enable
+      } else {
+        btn.className = "flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700 transition";
+        icon.className = "w-3.5 h-3.5 text-slate-400";
+        lbl.innerText = "Sound Alerts: Off";
+      }
+    }
+
+    function playTradeChime() {
+      try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+        const ctx = new AudioContext();
+
+        // 3-tone pleasant rising chime (C5 -> E5 -> G5)
+        const notes = [523.25, 659.25, 783.99];
+        notes.forEach((freq, idx) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = "sine";
+          osc.frequency.setValueAtTime(freq, ctx.currentTime + idx * 0.12);
+          gain.gain.setValueAtTime(0.18, ctx.currentTime + idx * 0.12);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + idx * 0.12 + 0.35);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(ctx.currentTime + idx * 0.12);
+          osc.stop(ctx.currentTime + idx * 0.12 + 0.36);
+        });
+      } catch (e) {
+        console.warn('Audio chime error:', e);
+      }
+    }
+
+    // 15-MINUTE CANDLE COUNTDOWN ENGINE
+    function updateCandleCountdown() {
+      const now = new Date();
+      const minutes = now.getMinutes();
+      const seconds = now.getSeconds();
+      const remMin = 14 - (minutes % 15);
+      const remSec = 59 - seconds;
+      
+      const pad = (n) => n < 10 ? '0' + n : n;
+      const timerEl = document.getElementById('candle-timer');
+      if (timerEl) {
+        timerEl.innerText = `${pad(remMin)}:${pad(remSec)}`;
+        // Highlight in gold when closing within 60 seconds
+        if (remMin === 0) {
+          timerEl.className = "mono font-bold text-amber-400 text-xs animate-pulse";
+        } else {
+          timerEl.className = "mono font-bold text-white text-xs";
+        }
+      }
+
+      // Automatically trigger a radar scan at the close of every 15m candle (:00, :15, :30, :45)
+      if (remMin === 0 && remSec === 0) {
+        console.log("15-minute candle closed! Triggering auto-scan...");
+        triggerScan();
+      }
+    }
+
+    async function openSettingsModal() {
+      try {
+        const res = await fetch('/api/status');
+        const data = await res.json();
+        document.getElementById('cfg-mode').value = data.config.trading_mode;
+        document.getElementById('cfg-capital').value = data.portfolio.cash_balance;
+        document.getElementById('cfg-risk').value = (data.config.risk_per_trade_pct * 100).toFixed(1);
+        document.getElementById('cfg-watchlist').value = data.config.watchlist.join(', ');
+        
+        // Telegram settings
+        document.getElementById('cfg-telegram-enabled').checked = Boolean(data.config.telegram_alerts_enabled);
+        if (data.config.telegram_connected) {
+          document.getElementById('cfg-telegram-token').placeholder = "•••••••• (Token configured)";
+        }
+      } catch (err) {}
+      document.getElementById('settings-modal').classList.remove('hidden');
+    }
+
+    function closeSettingsModal() {
+      document.getElementById('settings-modal').classList.add('hidden');
+    }
+
+    async function testTelegramPing() {
+      const token = document.getElementById('cfg-telegram-token').value.trim();
+      const chat = document.getElementById('cfg-telegram-chat').value.trim();
+      try {
+        const res = await fetch('/api/telegram-test', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ telegram_bot_token: token, telegram_chat_id: chat })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          alert('✅ ' + data.message);
+        } else {
+          alert('❌ ' + (data.detail || 'Test failed.'));
+        }
+      } catch (e) {
+        alert('Network error testing Telegram: ' + e.message);
+      }
+    }
+
+    async function loginWithZerodha() {
+      try {
+        const res = await fetch('/api/kite-login');
+        const data = await res.json();
+        if (res.ok && data.login_url) {
+          window.location.href = data.login_url;
+        } else {
+          alert('Could not start Zerodha login: ' + (data.detail || 'Check API Key in Settings'));
+        }
+      } catch (err) {
+        alert('Network error connecting to Zerodha: ' + err.message);
+      }
+    }
+
+    async function saveSettings() {
+      const payload = {
+        trading_mode: document.getElementById('cfg-mode').value,
+        starting_capital: parseFloat(document.getElementById('cfg-capital').value),
+        risk_per_trade_pct: parseFloat(document.getElementById('cfg-risk').value) / 100.0,
+        gemini_api_key: document.getElementById('cfg-gemini').value.trim(),
+        kite_api_key: document.getElementById('cfg-kite-key').value.trim(),
+        kite_api_secret: document.getElementById('cfg-kite-secret').value.trim(),
+        telegram_bot_token: document.getElementById('cfg-telegram-token').value.trim(),
+        telegram_chat_id: document.getElementById('cfg-telegram-chat').value.trim(),
+        telegram_alerts_enabled: document.getElementById('cfg-telegram-enabled').checked,
+        watchlist: document.getElementById('cfg-watchlist').value.split(',').map(s => s.trim().toUpperCase()).filter(Boolean)
+      };
+
+      try {
+        const res = await fetch('/api/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+          alert('Settings saved successfully!');
+          closeSettingsModal();
+          fetchStatus();
+        } else {
+          alert('Failed to save settings.');
+        }
+      } catch (err) {
+        alert('Error saving settings: ' + err.message);
+      }
+    }
+
+    // Init & Polling
+    window.addEventListener('DOMContentLoaded', () => {
+      lucide.createIcons();
+
+      // Check if redirected after successful Zerodha Auth
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('auth_success') === '1') {
+        alert("🎉 Zerodha Kite Authenticated Successfully!\nYour daily trading session is now active.");
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+
+      fetchStatus();
+      fetchPositions();
+      fetchJournal();
+      setInterval(fetchStatus, 5000);
+      setInterval(fetchPositions, 10000);
+      setInterval(fetchJournal, 15000);
+
+      // 15-Minute Candle Clock Tick every second
+      updateCandleCountdown();
+      setInterval(updateCandleCountdown, 1000);
+    });
+  </script>
+</body>
+</html>
