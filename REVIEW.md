@@ -2,6 +2,8 @@
 
 *Review date: 2026-10-13 · Commit reviewed: `f52f8d5` · Reviewers: Indian market trader / risk manager, technical architect, line-level code reviewer (all read-only)*
 
+*Verification pass: 2026-10-13. Every finding was re-checked line by line against `app.py` and `static/index.html`, and the numeric claims were reproduced in Python. Findings marked **[corrected]** were wrong or overstated and have been fixed in place. Findings marked **[external]** depend on facts outside the repo (NSE/SEBI/Zerodha rules, library internals) that couldn't be checked here. New issues found during verification are listed under "Added in verification".*
+
 ---
 
 ## Verdict
@@ -16,41 +18,43 @@ All three reviewers reached the same conclusion. The app works as a **signal das
 
 | # | Issue | Location | Failure scenario |
 |---|---|---|---|
-| 1 | **Close doesn't cancel the broker SL** | `app.py:777-800` | You exit at 10:30. Later the price hits the old trigger, the SL fires, and you are **short** on MIS. If the SL already fired at Zerodha, Exit sells a second time, which is also a short. |
+| 1 | **Close doesn't cancel the broker SL** | `app.py:777-800` | You exit at 10:30. Later the price hits the old trigger, the SL fires, and you are **short** on MIS. If the SL already fired at Zerodha, Exit sells a second time, which is also a short. The `sl_order_id` is returned in the API response but **never saved** on the position (`app.py:705, 712-722`), so no later code could cancel it. |
 | 2 | **Kill switch never contacts the broker** | `app.py:835-881` | In LIVE it only clears local JSON. Real positions and SL orders stay open at Zerodha. |
 | 3 | **Kill switch inflates cash** | `app.py:844-845` | It adds back the full notional, but only margin was deducted at entry. Example: ₹1L becomes ₹1.75L of phantom capital, and later sizing uses it. |
 | 4 | **Naked or untracked entry** | `app.py:679-708` | The single 0.8s fill check means a late fill is never tracked. If SL placement fails, the filled buy has no stop and isn't recorded. The HTTPException(400) also gets re-wrapped as a 500. |
-| 5 | **Close is booked locally even if the broker fails** | `app.py:777, 800` | The position is popped before the broker call. If the exit is rejected, the UI shows flat while you are still long. |
-| 6 | **Lost updates and state corruption** | `app.py:85-106, 443-465` | The 5s status poll does load → slow yfinance download → save of a stale copy, which erases concurrent trades. Writes are not atomic. A corrupt file silently resets to ₹1,00,000 with no positions. |
-| 7 | **No auth, CSRF, secrets returned by the API** | all endpoints, `app.py:991` | Any web page you visit can POST to the kill switch, settings or execute-trade. `/api/settings` echoes the Kite secret and access token. |
+| 5 | **Close is booked locally even if the broker fails** | `app.py:777, 786, 800` | The position is popped before the broker call. If the exit is rejected, the UI shows flat while you are still long. If LIVE credentials are missing, the broker is skipped silently and the close is still booked. |
+| 6 | **Lost updates and state corruption** | `app.py:85-106, 443-465` | The 5s status poll and the 10s positions poll each do load → slow yfinance download → save of a stale copy, which erases concurrent trades. This needs at least one open position, because only then does the poll save. The lock prevents torn reads inside the process, but writes are not atomic, so a crash or restart mid-write truncates the file. A corrupt file silently resets to ₹1,00,000 with no positions, ignoring the configured capital, and the next save overwrites the evidence. |
+| 7 | **No auth, CSRF on some endpoints, secrets returned by the API** **[corrected]** | all endpoints, `app.py:991` | Any web page you visit can POST to `/api/kill-switch` and `/api/resume-system`, which take no body, and can GET `/api/scan`, which spends Gemini quota and sends Telegram alerts. The endpoints that take a `dict` body (execute-trade, settings, close-position) are *not* reachable this way: FastAPI ≥0.65.2 won't parse a non-JSON body, and a cross-origin JSON request needs a CORS preflight that the app doesn't answer. There is no Host-header check, though, so a DNS-rebinding page can reach every endpoint and read responses. `/api/settings` echoes every secret, including the Kite secret, access token and Telegram token. |
 | 8 | **Paper→Live switch with open paper positions** | `app.py:783` | Exit sends a **real** SELL for a position you never bought, which creates a short. |
-| 9 | **TATAMOTORS orders get rejected** | `app.py:278-282, 670` | Data comes from `TMPV.NS`, but the order goes out as `TATAMOTORS`, which no longer exists after the demerger. |
-| 10 | **SEBI retail-algo / Kite compliance gaps** | order placement | No `market_protection` on MARKET orders, no order `tag`, no static IP, no rate throttle. |
+| 9 | **TATAMOTORS orders get rejected** **[external]** | `app.py:278-282, 670` | Data comes from `TMPV.NS`, but the order goes out as `TATAMOTORS`, which no longer exists after the demerger. The mismatch is confirmed in code, and `TATAMOTORS` is in both the default and example watchlists. That the NSE symbol is retired is an outside fact. |
+| 10 | **SEBI retail-algo / Kite compliance gaps** **[external]** | order placement | No `market_protection` on MARKET orders, no order `tag`, no static IP, no rate throttle. The code is confirmed to lack all four; the regulatory requirements themselves are outside facts. |
 
 ### High
-- **Safeguards in the docs don't exist.** There is no 09:45 entry block, no 15:15 auto square-off, no SL/TP monitoring, and no Nifty regime filter. `can_trade` is computed but never checked. `morning_buffer_enabled`, `intraday_cutoff_time` and `nifty_regime_filter` are never read. Zerodha's RMS square-off charges ₹50 + GST per position.
+- **Safeguards in the docs don't exist.** There is no 09:45 entry block, no 15:15 auto square-off, no SL/TP monitoring, and no Nifty regime filter. `can_trade` is computed but never checked. `morning_buffer_enabled`, `intraday_cutoff_time` and `nifty_regime_filter` are never read. Zerodha's RMS square-off charges ₹50 + GST per position. The "System Guard" tile in the UI is a hard-coded "09:45 AM Filter Active" label that nothing ever updates (`index.html:177`), so it always claims protection that doesn't exist.
 - **`execute_trade` trusts the client payload** (`app.py:621-647`).
-  - It does not re-check the AI veto, market hours, types or NaN.
+  - It does not re-check the AI veto, market hours, types or NaN. Reproduced: `{"shares": NaN}` passes both the `<= 0` check and the margin check, because every comparison with NaN is false. A string `shares` raises a TypeError, which surfaces as a 500.
   - It does not check for an existing position in the same symbol. A second buy overwrites the first, permanently leaking its margin and leaving an orphan OPEN journal entry.
 - **The AI gate fails open.**
   - With no Gemini key or no library, it approves at 85% (`app.py:357-364`).
-  - `fetch_company_news` returns `None` on error (`app.py:139`), and Gemini is then told "no negative alerts".
+  - `fetch_company_news` returns `None` on error (`app.py:139`), and Gemini is then told "no negative alerts". The same happens when the search finds no headlines.
+  - Partial mitigation: the UI labels this state "Gemini (Simulated)" (`index.html:462`), and Gemini *API errors* do fail closed (`app.py:394-400`).
 - **The settings modal corrupts data.**
   - Every save clears the Telegram token and chat ID (`index.html:974, 1026-1027`; `app.py:979`).
-  - Every save also overwrites `starting_capital` and resets cash, even with open positions (`app.py:983-988`).
+  - **[corrected]** The "Capital" field is pre-filled with the current **cash balance**, not `starting_capital` (`index.html:967`). Each save copies that value into both `starting_capital` and cash (`app.py:983-988`). The result is that `starting_capital` silently drifts to current cash. Cash only changes if you edit the field, or if a trade happened while the modal was open, in which case a stale value overwrites it. Editing it with open positions breaks the margin accounting.
+  - Settings accepts any key that already exists in the config, with no type or range checks. For example, `max_portfolio_leverage: 0` makes every trade fail with a ZeroDivisionError, and `trading_mode: "live"` in lower case is quietly treated as paper.
 - **Execution microstructure:**
   - The ₹0.50 SL-limit buffer is fixed regardless of price (`app.py:692`), so it is negligible on MARUTI or BAJAJ-AUTO.
-  - The tick size is hard-coded to ₹0.05, but NSE uses price-banded ticks.
+  - The tick size is hard-coded to ₹0.05, but NSE uses price-banded ticks. The hard-coding is confirmed; the current NSE tick table is **[external]**.
   - The take-profit is never placed at the broker.
-  - In LIVE, the SL is shifted to the actual fill price but the take-profit is not.
+  - In LIVE, the SL is shifted to the actual fill price but the take-profit is not. The position also stores the client's `stop_loss`, not the `sl_trigger` actually sent to Zerodha (`app.py:691, 717`), so the UI shows the wrong stop.
 - **Margin and risk limits:**
   - Leverage is a flat 4x with no per-stock MIS margin.
-  - Sizing is not capped by available margin.
+  - **[corrected]** The size the scan suggests is not capped by available margin. `execute_trade` does reject the order when margin exceeds cash, so the outcome is a rejected trade, not an oversized one. Risk is sized on cash rather than equity, so each open position shrinks the next trade's risk budget.
   - There is no max-positions limit, daily loss limit, sector/correlation cap, or F&O-ban/circuit check.
 - **Data:**
   - yfinance is delayed and unofficial.
-  - Concurrent `yf.download` calls can mix tickers.
-  - The auto-scan fires at exactly :00/:15/:30/:45, so `iloc[-2]` may be one bar staler than intended.
+  - Concurrent `yf.download` calls can mix tickers. This is plausible, because yfinance keeps results in module-level dicts, but it couldn't be reproduced here. **[external]**
+  - **[corrected]** The auto-scan fires at **:14:59, :29:59, :44:59 and :59:59** by the browser's clock, one second *before* each candle closes (`index.html:940-956`; reproduced). At that moment `iloc[-2]` is the bar that closed about 15 minutes earlier, so every auto-scan is a full bar late. The exact-second check also needs a foreground tab, because browsers throttle background timers and can skip that second entirely.
   - Entry uses the candle close, not the LTP.
 
 ### Medium
@@ -60,22 +64,22 @@ All three reviewers reached the same conclusion. The app works as a **signal das
   - `kite_callback` reflects `str(e)` (`app.py:441`).
   - Telegram `parse_mode=HTML` is unescaped, so `M&M` or `<` makes alerts drop silently.
 - The news URL isn't URL-encoded (`app.py:126`). `M&M` searches for "M".
-- `total_equity` is cash + full notional, overstated by the leverage factor (`app.py:469-471`).
+- `total_equity` is cash + full notional (`app.py:469-471`). **[corrected wording]** The overstatement is notional − margin − unrealised P&L, which is 75% of notional at 4x. It is not a multiple of equity.
 - Index "change" is measured against yesterday's 09:15 open, not the previous close (`app.py:221, 239`). Hardcoded fallback prices look live.
 - Each 5s/10s poll downloads 30 days of 15m bars per position, which invites Yahoo throttling.
 - The journal table re-renders every 15s, wiping any note being typed (`index.html:842, 1066`).
-- `pandas-ta` 0.3.14b0 is incompatible with numpy 2.x. Requirements are unpinned. Tailwind/Lucide come from CDNs with no SRI. `--reload` in the launcher restarts the server on any file save.
+- `pandas-ta` 0.3.14b0 imports `numpy.NaN`, which numpy 2.x removed. Whether pip actually resolves to that version depends on the environment; it couldn't be tested here because no dependencies are installed. **[external]** Requirements are unpinned. Tailwind (the play CDN) and Lucide (`@latest`) come from CDNs with no SRI. **[corrected]** `--reload` in the launcher restarts the server whenever a `.py` file changes. That is uvicorn's default watch pattern, so it is not triggered by every file save, and the JSON state writes don't trigger it.
 
 ### Low
-- Leverage defaults are inconsistent (4.5 in code vs 4.0 in config, `app.py:640, 804`).
-- `int(time.time())` order IDs collide for two trades in the same second (`app.py:649, 808`).
+- Leverage defaults are inconsistent (4.5 in code vs 4.0 in config, `app.py:640, 804`). Both fallbacks are effectively dead code: the `DEFAULT_CONFIG` merge always supplies the key, and `margin_locked` is always stored.
+- `int(time.time())` order IDs collide for two paper trades in the same second (`app.py:649`). The exit and kill IDs include the symbol. On a collision, journal notes are saved to the wrong trade.
 - `profit_factor` returns gross profit when there are no losses (`app.py:897`).
 - Scan exceptions are swallowed silently (`app.py:569-572`).
 - Telegram alerts are re-sent on every scan and from every open tab. There is no de-duplication.
-- An empty capital or risk field saves `null`, which breaks the scan.
+- **[corrected]** An empty risk field saves `null`. Every scan row then raises a TypeError that is swallowed, so the radar shows "No data returned". An empty capital field does *not* save `null`: `float(None)` raises before `save_config`, so the whole save fails with a 500 and nothing is stored.
 - Position P&L is always styled green (`index.html:716`).
 - There is no NSE holiday calendar.
-- `round_to_tick` has float half-tick misroundings (`99.975→99.95`). Use `Decimal`.
+- `round_to_tick` breaks exact half-tick ties inconsistently because of float error: `99.975→99.95` but `100.025→100.05` (reproduced). The practical impact is negligible next to the wrong tick size. Use `Decimal` when the function is rewritten for banded ticks.
 
 ### Rejected suspicions (verified as non-issues)
 - `if news_context` doesn't crash on `None`. The real issue is the approval bias.
@@ -85,6 +89,15 @@ All three reviewers reached the same conclusion. The app works as a **signal das
 - `get_ist_time`'s mislabelled tzinfo is only a latent issue. Its wall-clock output is correct.
 - No frontend/backend field-name mismatches were found.
 - The UI does hide Execute for vetoed trades. Only the server fails to enforce the veto.
+- Gemini API exceptions fail closed (`app.py:394-400`). Only the missing key or missing library path fails open.
+
+### Added in verification
+- **Close trusts the client's exit price** (`app.py:780`). `exit_price` comes from the request body, so any caller sets the realised P&L and the cash credited. Without one, LIVE P&L uses the last yfinance close, not the broker's fill. Journal P&L in LIVE is therefore never the real fill.
+- **LIVE cash is a local simulation.** It is never reconciled with Zerodha funds, and margin is computed from the signal price rather than the fill price (`app.py:639-641`).
+- **The System Guard tile is static text**, and the frontend never reads `can_trade` either (see High).
+- **The stored SL differs from the broker SL**, and the **SL order ID is never stored** (see Critical #1 and High).
+- **The settings endpoint has no schema** (see High).
+- **The auto-scan needs an open, foreground tab** (see High → Data).
 
 ### Docs vs reality
 - "Institutional-grade" is not accurate.
@@ -147,7 +160,7 @@ Key design choices:
 ## Roadmap
 
 ### Phase 1: days (stop the money-losing and security bugs)
-1. In LIVE, close and kill switch cancel the stored `sl_order_id` and exit at the broker. Local state changes only after the broker confirms. Fix the kill-switch cash math.
+1. Save `sl_order_id` on the position at entry; today it isn't saved. In LIVE, close and kill switch cancel it and exit at the broker. Local state changes only after the broker confirms. Fix the kill-switch cash math.
 2. `execute_trade`:
    - Poll the order to a final state and handle partial fills.
    - If the SL fails, flatten immediately and alert.
