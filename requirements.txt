@@ -1,9 +1,9 @@
-fastapi>=0.110.0
-uvicorn[standard]>=0.28.0
-pydantic>=2.6.0
-pandas>=2.2.0
-pandas-ta>=0.3.14b0
-kiteconnect>=5.0.0
-google-genai>=0.1.1
-yfinance>=0.2.36
-requests>=2.31.0
+# Tested with Python 3.13 on Windows. pandas 3 needs Python 3.11 or newer.
+fastapi==0.143.0
+uvicorn[standard]==0.54.0
+pydantic==2.14.1
+pandas==3.0.6
+numpy==2.5.4
+kiteconnect==5.2.2
+google-genai==2.30.0
+yfinance==1.7.0
