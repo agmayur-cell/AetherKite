@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="aetherkite-token" content="__AETHERKITE_TOKEN__">
   <title>AetherKite Terminal | Indian Equities</title>
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -43,7 +44,10 @@
           <span class="w-2 h-2 rounded-full bg-amber-400"></span> Gemini AI
         </span>
         <span class="px-2.5 py-1 rounded-full bg-slate-800 border border-slate-700 flex items-center gap-1.5" id="market-status">
-          <span class="w-2 h-2 rounded-full bg-emerald-400"></span> Market Open
+          <span class="w-2 h-2 rounded-full bg-slate-500"></span> Market
+        </span>
+        <span class="px-2.5 py-1 rounded-full bg-slate-800 border border-slate-700 flex items-center gap-1.5" id="kite-status" title="Zerodha session">
+          <span class="w-2 h-2 rounded-full bg-slate-500"></span> Kite
         </span>
       </div>
 
@@ -71,6 +75,9 @@
 
   <!-- MAIN BODY -->
   <main class="flex-1 p-6 max-w-7xl w-full mx-auto space-y-6">
+
+    <!-- ERROR BANNER (server unreachable, corrupt state file, ...) -->
+    <div id="app-error" class="hidden p-3 rounded-xl bg-amber-950/80 border border-amber-800 text-amber-200 text-xs font-semibold"></div>
 
     <!-- SENSEX & MARKET PULSE TICKER BAR -->
     <div class="bg-slate-900 border border-slate-800 rounded-xl p-3.5 flex flex-wrap items-center justify-between gap-4 shadow-xl">
@@ -151,7 +158,7 @@
       <!-- Unrealized P&L -->
       <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
         <div class="text-xs font-medium text-slate-400 flex items-center justify-between">
-          <span>Today's Live P&L</span>
+          <span>Open P&L</span>
           <i data-lucide="trending-up" class="w-4 h-4 text-blue-400"></i>
         </div>
         <div class="mt-2 text-2xl font-bold mono" id="kpi-pnl">₹0.00</div>
@@ -165,7 +172,7 @@
           <i data-lucide="shield-check" class="w-4 h-4 text-purple-400"></i>
         </div>
         <div class="mt-2 text-2xl font-bold mono" id="kpi-risk">1.0% / Trade</div>
-        <div class="mt-1 text-xs text-slate-500">Max loss capped at 1.5x ATR</div>
+        <div class="mt-1 text-xs text-slate-500">Stop at 1.5x ATR (gaps can exceed it)</div>
       </div>
 
       <!-- Strategy State -->
@@ -174,8 +181,8 @@
           <span>System Guard</span>
           <i data-lucide="clock" class="w-4 h-4 text-amber-400"></i>
         </div>
-        <div class="mt-2 text-base font-bold text-slate-200" id="kpi-guard">09:45 AM Filter Active</div>
-        <div class="mt-1 text-xs text-slate-500">Auto-Squareoff at 15:15 IST</div>
+        <div class="mt-2 text-base font-bold text-slate-200" id="kpi-guard">Checking session...</div>
+        <div class="mt-1 text-xs text-slate-500" id="kpi-guard-sub">&nbsp;</div>
       </div>
     </div>
 
@@ -184,12 +191,12 @@
       <div class="flex items-center gap-3">
         <i data-lucide="alert-triangle" class="w-6 h-6 text-rose-400"></i>
         <div>
-          <div class="font-bold text-sm">EMERGENCY KILL SWITCH ACTIVATED</div>
-          <div class="text-xs text-rose-300">All open orders are flattened. Automated execution is halted.</div>
+          <div class="font-bold text-sm">TRADING HALTED: NEW ENTRIES BLOCKED</div>
+          <div class="text-xs text-rose-300" id="halt-reason">Kill switch activated.</div>
         </div>
       </div>
       <button onclick="resumeSystem()" class="px-4 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold">
-        Resume Engine
+        Resume Trading
       </button>
     </div>
 
@@ -201,12 +208,12 @@
             <i data-lucide="scan" class="w-4 h-4 text-blue-400"></i>
             Live Signal Radar & AI Gatekeeper
           </h2>
-          <p class="text-xs text-slate-400">Deterministic Closed-Candle Indicators paired with Gemini 3.8 Flash Veto</p>
+          <p class="text-xs text-slate-400" id="radar-subtitle">Closed-candle indicators, Nifty regime filter and Gemini news veto. The server re-scans after every candle.</p>
         </div>
         <div class="flex items-center gap-2">
-          <input type="text" id="radar-search" oninput="filterRadar()" placeholder="Search 50 stocks..." class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-500 w-36 focus:w-48 transition-all">
+          <input type="text" id="radar-search" oninput="filterRadar()" placeholder="Search watchlist..." class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-500 w-36 focus:w-48 transition-all">
           <select id="radar-filter" onchange="filterRadar()" class="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-300">
-            <option value="ALL">All 50 Stocks</option>
+            <option value="ALL">All symbols</option>
             <option value="BUY_ONLY">🎯 Only Buy Triggers</option>
           </select>
           <span class="text-xs text-slate-500 mono hidden sm:inline" id="last-scan-time">Ready to scan</span>
@@ -231,7 +238,7 @@
           <tbody id="radar-tbody" class="divide-y divide-slate-800">
             <tr>
               <td colspan="9" class="px-4 py-8 text-center text-slate-500">
-                Click <strong class="text-blue-400">Scan Radar</strong> above to evaluate watchlist against live market feeds.
+                Loading the latest scan... or click <strong class="text-blue-400">Scan Radar</strong> to scan now. (Prices are delayed ~15 min from Yahoo Finance.)
               </td>
             </tr>
           </tbody>
@@ -279,9 +286,9 @@
           <p class="text-xs text-slate-400">Audit trail with Quant Entry Rationale, Gemini AI Veto Log & Realized P&L</p>
         </div>
         <div class="flex items-center gap-2">
-          <a href="/api/journal/export" download class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition text-slate-300 hover:text-white">
+          <button onclick="exportJournal()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition text-slate-300 hover:text-white">
             <i data-lucide="download" class="w-4 h-4"></i> Export CSV
-          </a>
+          </button>
           <button onclick="fetchJournal()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition text-slate-300">
             <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Refresh Journal
           </button>
@@ -361,25 +368,27 @@
           <label class="block text-slate-400 font-semibold mb-1">Trading Mode</label>
           <select id="cfg-mode" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white">
             <option value="PAPER">Paper Trading (Safe Simulation)</option>
-            <option value="LIVE">Live Trading (Zerodha Kite)</option>
+            <option value="LIVE" id="cfg-mode-live">Live Trading (Zerodha Kite, real money)</option>
           </select>
+          <span class="text-[10px] text-slate-500" id="cfg-mode-note">Mode can only change while no positions are open.</span>
         </div>
 
         <div class="grid grid-cols-2 gap-3">
           <div>
-            <label class="block text-slate-400 font-semibold mb-1">Capital (₹)</label>
-            <input type="number" id="cfg-capital" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white mono" value="100000">
+            <label class="block text-slate-400 font-semibold mb-1">Starting Capital (₹)</label>
+            <input type="number" id="cfg-capital" min="1" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white mono">
+            <span class="text-[10px] text-slate-500">Changing it resets cash (only when flat).</span>
           </div>
           <div>
             <label class="block text-slate-400 font-semibold mb-1">Risk per Trade (%)</label>
-            <input type="number" id="cfg-risk" step="0.1" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white mono" value="1.0">
+            <input type="number" id="cfg-risk" step="0.05" min="0.05" max="5" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white mono">
           </div>
         </div>
 
         <div>
           <label class="block text-slate-400 font-semibold mb-1">Google Gemini API Key</label>
           <input type="password" id="cfg-gemini" placeholder="AIzaSy..." class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white mono">
-          <span class="text-[10px] text-slate-500">Powers real-time news sentiment and trade veto.</span>
+          <span class="text-[10px] text-slate-500">Reads 5 Google News headlines per signal and can veto it. Without a key, PAPER signals are marked "not evaluated" and LIVE entries are blocked. Leave blank to keep the saved key.</span>
         </div>
 
         <div class="grid grid-cols-2 gap-3">
@@ -393,7 +402,7 @@
           </div>
         </div>
         <p class="text-[10px] text-slate-400">
-          💡 <strong>1-Click Setup:</strong> In your Kite Developer App, set <strong>Redirect URL</strong> to: <code class="text-blue-400">http://127.0.0.1:8000/api/kite-callback</code>. Then you only need to click "Connect Zerodha" each morning!
+          💡 <strong>1-Click Setup:</strong> In your Kite developer app, set the <strong>Redirect URL</strong> to <code class="text-blue-400" id="cfg-redirect-url">http://127.0.0.1:8000/api/kite-callback</code>, then click "Connect Zerodha" each trading morning (tokens expire daily). Leave key fields blank to keep saved values.
         </p>
 
         <div class="border-t border-slate-800 pt-3 space-y-2">
@@ -418,7 +427,7 @@
             </div>
           </div>
           <div class="flex items-center justify-between pt-1">
-            <span class="text-[10px] text-slate-500">Get free token from @BotFather on Telegram.</span>
+            <span class="text-[10px] text-slate-500">Token from @BotFather; blank fields keep saved values. <button type="button" onclick="clearTelegram()" class="underline text-rose-300">Remove</button></span>
             <button type="button" onclick="testTelegramPing()" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-blue-400 font-semibold text-[11px] border border-slate-700 transition">
               Test Alert Ping
             </button>
@@ -427,7 +436,7 @@
 
         <div>
           <label class="block text-slate-400 font-semibold mb-1">Watchlist (Comma-separated)</label>
-          <input type="text" id="cfg-watchlist" value="RELIANCE, TCS, HDFCBANK, INFY, ICICIBANK, TATAMOTORS" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white uppercase mono">
+          <input type="text" id="cfg-watchlist" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white uppercase mono">
         </div>
       </div>
 
@@ -438,634 +447,622 @@
     </div>
   </div>
 
+
   <!-- JAVASCRIPT APP LOGIC -->
   <script>
-    let currentScanResults = [];
+    // ---------------------------------------------------------------- helpers
+    const TOKEN = document.querySelector('meta[name="aetherkite-token"]').content;
+    const $ = (id) => document.getElementById(id);
 
-    async function fetchStatus() {
-      try {
-        const res = await fetch('/api/status');
-        const data = await res.json();
+    function esc(value) {
+      return String(value ?? '').replace(/[&<>"'`]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '`': '&#96;' }[c]));
+    }
+    function inr(n, digits = 2) {
+      if (n === null || n === undefined || !isFinite(n)) return '—';
+      return '₹' + Number(n).toLocaleString('en-IN', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+    }
+    function signedInr(n) {
+      if (n === null || n === undefined || !isFinite(n)) return '—';
+      return (n >= 0 ? '+' : '-') + inr(Math.abs(n));
+    }
+    function pnlClass(n) { return n > 0 ? 'text-emerald-400' : (n < 0 ? 'text-rose-400' : 'text-slate-300'); }
+    function icons() { if (window.lucide) window.lucide.createIcons(); }
 
-        // Update Clock & Status
-        document.getElementById('market-time').innerText = data.market.ist_time;
-        document.getElementById('badge-mode').innerText = data.config.trading_mode + " MODE";
-        document.getElementById('badge-mode').className = data.config.trading_mode === 'LIVE' 
-          ? "text-xs px-2 py-0.5 rounded font-medium bg-rose-950 text-rose-400 border border-rose-800"
-          : "text-xs px-2 py-0.5 rounded font-medium bg-emerald-950 text-emerald-400 border border-emerald-800/60";
-
-        // Gemini Status Pill
-        const geminiPill = document.getElementById('gemini-status');
-        if (data.config.gemini_connected) {
-          geminiPill.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400"></span> Gemini 3.8 Flash`;
-        } else {
-          geminiPill.innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-400"></span> Gemini (Simulated)`;
-        }
-
-        // Market Open Pill
-        const mktPill = document.getElementById('market-status');
-        if (data.market.is_open) {
-          mktPill.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400"></span> Market Open`;
-        } else {
-          mktPill.innerHTML = `<span class="w-2 h-2 rounded-full bg-slate-500"></span> Market Closed`;
-        }
-
-        // Update Sensex & Nifty Benchmark Tickers
-        if (data.indices) {
-          const s = data.indices.sensex;
-          if (s && s.price > 0) {
-            document.getElementById('ticker-sensex-price').innerText = s.price.toLocaleString('en-IN', {minimumFractionDigits: 2});
-            const sSign = s.change >= 0 ? '+' : '';
-            const sChgEl = document.getElementById('ticker-sensex-change');
-            sChgEl.innerText = `${sSign}${s.change.toFixed(2)} (${sSign}${s.pct_change.toFixed(2)}%)`;
-            sChgEl.className = s.change >= 0 ? "text-xs font-semibold mono text-emerald-400" : "text-xs font-semibold mono text-rose-400";
-          }
-
-          const n = data.indices.nifty;
-          if (n && n.price > 0) {
-            document.getElementById('ticker-nifty-price').innerText = n.price.toLocaleString('en-IN', {minimumFractionDigits: 2});
-            const nSign = n.change >= 0 ? '+' : '';
-            const nChgEl = document.getElementById('ticker-nifty-change');
-            nChgEl.innerText = `${nSign}${n.change.toFixed(2)} (${nSign}${n.pct_change.toFixed(2)}%)`;
-            nChgEl.className = n.change >= 0 ? "text-xs font-semibold mono text-emerald-400" : "text-xs font-semibold mono text-rose-400";
-          }
-
-          // Macro Market Regime Badge
-          const regimeBadge = document.getElementById('ticker-regime-badge');
-          const avgPct = ((s ? s.pct_change : 0) + (n ? n.pct_change : 0)) / 2;
-          if (avgPct >= 0.20) {
-            regimeBadge.innerText = "BULLISH TREND (Aligned for Longs)";
-            regimeBadge.className = "px-3 py-1 rounded-full text-xs font-bold border bg-emerald-950 text-emerald-300 border-emerald-800";
-          } else if (avgPct <= -0.20) {
-            regimeBadge.innerText = "BEARISH DRAG (Caution on Longs)";
-            regimeBadge.className = "px-3 py-1 rounded-full text-xs font-bold border bg-rose-950 text-rose-300 border-rose-800";
-          } else {
-            regimeBadge.innerText = "RANGE-BOUND / CONSOLIDATING";
-            regimeBadge.className = "px-3 py-1 rounded-full text-xs font-bold border bg-slate-800 text-amber-300 border-slate-700";
-          }
-        }
-
-        // KPIs
-        document.getElementById('kpi-cash').innerText = '₹' + data.portfolio.cash_balance.toLocaleString('en-IN', {minimumFractionDigits: 2});
-        
-        const pnl = data.portfolio.unrealized_pnl;
-        const pnlEl = document.getElementById('kpi-pnl');
-        pnlEl.innerText = (pnl >= 0 ? '+₹' : '-₹') + Math.abs(pnl).toLocaleString('en-IN', {minimumFractionDigits: 2});
-        pnlEl.className = pnl >= 0 ? "mt-2 text-2xl font-bold mono text-emerald-400" : "mt-2 text-2xl font-bold mono text-rose-400";
-        document.getElementById('kpi-pnl-sub').innerText = `${data.portfolio.open_positions_count} open positions active`;
-
-        document.getElementById('kpi-risk').innerText = `${data.config.risk_per_trade_pct * 100}% / Trade`;
-
-        // Halt Banner
-        const haltBanner = document.getElementById('halt-banner');
-        if (data.portfolio.system_halted) {
-          haltBanner.classList.remove('hidden');
-        } else {
-          haltBanner.classList.add('hidden');
-        }
-      } catch (err) {
-        console.error('Status fetch error:', err);
-      }
+    // Single-flight wrapper: skips a call while the previous one is still running.
+    function singleFlight(fn) {
+      let running = false;
+      return async (...args) => {
+        if (running) return;
+        running = true;
+        try { return await fn(...args); } finally { running = false; }
+      };
     }
 
-    async function triggerScan() {
-      const btn = document.getElementById('btn-scan');
-      const icon = document.getElementById('scan-icon');
-      icon.classList.add('animate-spin');
-      btn.disabled = true;
-
+    async function api(path, options = {}) {
+      const headers = { 'X-AetherKite-Token': TOKEN };
+      if (options.body !== undefined) headers['Content-Type'] = 'application/json';
+      let res;
       try {
-        const res = await fetch('/api/scan');
-        const data = await res.json();
-        currentScanResults = data.results;
-        document.getElementById('last-scan-time').innerText = `Last scanned: ${data.scan_timestamp}`;
-        renderRadar(data.results);
+        res = await fetch(path, { ...options, headers });
+      } catch (e) {
+        throw new Error('Cannot reach the AetherKite server. Is it still running?');
+      }
+      const isJson = (res.headers.get('content-type') || '').includes('application/json');
+      const data = isJson ? await res.json() : null;
+      if (!res.ok) {
+        let detail = data && data.detail;
+        if (Array.isArray(detail)) detail = detail.map(d => d.msg || JSON.stringify(d)).join('; ');
+        const err = new Error(detail || `Server error ${res.status}. Check the server log before retrying.`);
+        err.status = res.status;
+        throw err;
+      }
+      return data ?? {};
+    }
+    const post = (path, body = {}) => api(path, { method: 'POST', body: JSON.stringify(body) });
 
-        // If audio alerts are ON, check for any newly detected BUY signals
-        if (audioAlertsEnabled && data.results) {
-          const buyItems = data.results.filter(r => r.quant_signal === 'BUY' && (!r.ai_verdict || r.ai_verdict.approve_trade));
-          const hasNewBuy = buyItems.some(item => !knownBuySymbols.has(item.symbol));
-          if (hasNewBuy) {
-            playTradeChime();
-          }
-          knownBuySymbols = new Set(buyItems.map(b => b.symbol));
-        }
+    function showError(message) {
+      const el = $('app-error');
+      if (message) { el.textContent = message; el.classList.remove('hidden'); }
+      else el.classList.add('hidden');
+    }
+
+    function pill(el, colour, text) {
+      el.innerHTML = `<span class="w-2 h-2 rounded-full ${colour}"></span> ${esc(text)}`;
+    }
+
+    // ---------------------------------------------------------------- status
+    let lastStatus = null;
+    let istOffsetMs = 0;   // IST wall clock minus browser clock, from the server
+
+    const fetchStatus = singleFlight(async () => {
+      let data;
+      try {
+        data = await api('/api/status');
+      } catch (err) {
+        showError(err.message);
+        return;
+      }
+      showError(null);
+      lastStatus = data;
+      const m = data.market, c = data.config, p = data.portfolio;
+
+      const serverTime = new Date(m.ist_time.replace(' IST', '').replace(' ', 'T'));
+      if (!isNaN(serverTime)) istOffsetMs = serverTime.getTime() - Date.now();
+
+      $('market-time').innerText = m.ist_time;
+      const live = c.trading_mode === 'LIVE';
+      $('badge-mode').innerText = live ? (c.live_enabled ? 'LIVE MODE' : 'LIVE (ORDERS DISABLED)') : 'PAPER MODE';
+      $('badge-mode').className = live
+        ? 'text-xs px-2 py-0.5 rounded font-medium bg-rose-950 text-rose-400 border border-rose-800'
+        : 'text-xs px-2 py-0.5 rounded font-medium bg-emerald-950 text-emerald-400 border border-emerald-800/60';
+
+      pill($('gemini-status'), c.gemini_connected ? 'bg-emerald-400' : 'bg-amber-400',
+        c.gemini_connected ? `Gemini (${c.gemini_model})` : 'Gemini: not configured');
+      $('gemini-status').title = c.gemini_connected
+        ? 'A key is saved. A failing key shows as "AI not evaluated" on signals.'
+        : 'No key: PAPER signals are not AI-checked; LIVE entries are blocked.';
+      pill($('market-status'), m.is_open ? 'bg-emerald-400' : 'bg-slate-500', m.is_open ? 'Market Open' : 'Market Closed');
+      if (c.kite_connected) pill($('kite-status'), 'bg-emerald-400', 'Kite session OK');
+      else if (c.kite_configured) pill($('kite-status'), 'bg-amber-400', 'Kite: login needed');
+      else pill($('kite-status'), 'bg-slate-500', 'Kite: not set up');
+
+      renderIndex('sensex', data.indices.sensex);
+      renderIndex('nifty', data.indices.nifty);
+      const r = data.indices.regime, badge = $('ticker-regime-badge');
+      if (!r.filter_enabled) {
+        badge.innerText = 'Regime filter OFF';
+        badge.className = 'px-3 py-1 rounded-full text-xs font-bold border bg-slate-950 text-slate-300 border-slate-700';
+      } else if (r.ok === true) {
+        badge.innerText = 'Nifty regime: longs allowed';
+        badge.className = 'px-3 py-1 rounded-full text-xs font-bold border bg-emerald-950 text-emerald-300 border-emerald-800';
+      } else {
+        badge.innerText = r.ok === false ? 'Nifty regime: longs blocked' : 'Nifty regime: no data (blocked)';
+        badge.className = 'px-3 py-1 rounded-full text-xs font-bold border bg-rose-950 text-rose-300 border-rose-800';
+      }
+      badge.title = r.detail || '';
+
+      $('kpi-cash').innerText = inr(p.cash_balance);
+      const pnlEl = $('kpi-pnl');
+      pnlEl.innerText = signedInr(p.unrealized_pnl);
+      pnlEl.className = 'mt-2 text-2xl font-bold mono ' + pnlClass(p.unrealized_pnl);
+      $('kpi-pnl-sub').innerText = `${p.open_positions_count} open · realised today ${signedInr(p.day_realized_pnl)} · equity ${inr(p.total_equity, 0)}`;
+      $('kpi-risk').innerText = `${(c.risk_per_trade_pct * 100).toFixed(2)}% / Trade`;
+
+      $('kpi-guard').innerText = m.can_trade ? `Entries open (${m.entry_window})` : (m.block_reason || 'Entries blocked');
+      $('kpi-guard').className = 'mt-2 text-base font-bold ' + (m.can_trade ? 'text-emerald-300' : 'text-amber-300');
+      const eng = data.engine;
+      $('kpi-guard-sub').innerText = `Auto square-off ${m.square_off_time} IST · engine ` +
+        (eng.enabled ? (eng.last_tick ? `tick ${eng.last_tick.slice(11)}` : 'starting') : 'OFF') +
+        (eng.last_error ? ` · ⚠ ${eng.last_error}` : '');
+
+      if (p.system_halted) {
+        $('halt-banner').classList.remove('hidden');
+        $('halt-reason').innerText = (p.halt_reason || 'Kill switch activated.') +
+          (p.pending_live_orders ? ` · ${p.pending_live_orders} unresolved live order(s): check Kite before resuming.` : '');
+      } else {
+        $('halt-banner').classList.add('hidden');
+      }
+    });
+
+    function renderIndex(name, x) {
+      const priceEl = $(`ticker-${name}-price`), chgEl = $(`ticker-${name}-change`);
+      if (!x || x.price === null) {
+        priceEl.innerText = '—';
+        chgEl.innerText = 'data unavailable';
+        chgEl.className = 'text-xs font-semibold mono text-slate-500';
+        return;
+      }
+      priceEl.innerText = x.price.toLocaleString('en-IN', { minimumFractionDigits: 2 });
+      if (x.change === null) {
+        chgEl.innerText = `as of ${x.as_of}`;
+        chgEl.className = 'text-xs font-semibold mono text-slate-400';
+        return;
+      }
+      const sign = x.change >= 0 ? '+' : '';
+      chgEl.innerText = `${sign}${x.change.toFixed(2)} (${sign}${x.pct_change.toFixed(2)}%) vs prev close`;
+      chgEl.title = `Delayed data, last bar ${x.as_of}`;
+      chgEl.className = 'text-xs font-semibold mono ' + (x.change >= 0 ? 'text-emerald-400' : 'text-rose-400');
+    }
+
+    // ---------------------------------------------------------------- radar
+    let currentScanResults = [];
+    let knownExecutable = new Set();
+
+    async function applyScan(data) {
+      currentScanResults = data.results || [];
+      $('last-scan-time').innerText = data.scan_timestamp
+        ? `Scanned ${data.scan_timestamp}${data.candle_time ? ' · candle ' + data.candle_time.slice(11, 16) : ''}`
+        : 'Not scanned yet';
+      filterRadar();
+      const executable = currentScanResults.filter(r => r.executable).map(r => r.signal_id);
+      if (audioAlertsEnabled && executable.some(id => !knownExecutable.has(id))) playTradeChime();
+      knownExecutable = new Set(executable);
+    }
+
+    const loadScan = singleFlight(async () => {
+      try { await applyScan(await api('/api/scan')); } catch (err) { console.warn('scan load failed:', err.message); }
+    });
+
+    const triggerScan = singleFlight(async () => {
+      const btn = $('btn-scan'), icon = $('scan-icon');
+      icon?.classList.add('animate-spin');
+      btn.disabled = true;
+      try {
+        await applyScan(await api('/api/scan?refresh=true'));
       } catch (err) {
         alert('Scan failed: ' + err.message);
       } finally {
-        icon.classList.remove('animate-spin');
+        $('scan-icon')?.classList.remove('animate-spin');
         btn.disabled = false;
       }
-    }
+    });
 
     function filterRadar() {
-      const q = (document.getElementById('radar-search')?.value || '').trim().toUpperCase();
-      const filterMode = document.getElementById('radar-filter')?.value || 'ALL';
-
-      let filtered = currentScanResults.filter(item => {
-        const matchesQuery = !q || item.symbol.toUpperCase().includes(q);
-        const matchesFilter = (filterMode === 'ALL') || (item.quant_signal === 'BUY');
-        return matchesQuery && matchesFilter;
-      });
-      renderRadar(filtered);
+      const q = ($('radar-search')?.value || '').trim().toUpperCase();
+      const mode = $('radar-filter')?.value || 'ALL';
+      renderRadar(currentScanResults.filter(item =>
+        (!q || item.symbol.toUpperCase().includes(q)) && (mode === 'ALL' || item.quant_signal === 'BUY')));
     }
 
     function renderRadar(results) {
-      const tbody = document.getElementById('radar-tbody');
-      tbody.innerHTML = '';
-
+      const tbody = $('radar-tbody');
       if (!results || results.length === 0) {
         tbody.innerHTML = `<tr><td colspan="9" class="px-4 py-6 text-center text-slate-500">No data returned.</td></tr>`;
         return;
       }
-
-      results.forEach((r, idx) => {
-        const tr = document.createElement('tr');
-        tr.className = "hover:bg-slate-800/40 transition";
-
-        // Trend Badge
-        const trendBadge = r.trend_bullish 
-          ? `<span class="px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 font-semibold">BULLISH (>200 EMA)</span>`
-          : `<span class="px-2 py-0.5 rounded bg-slate-800 text-slate-400">BEARISH</span>`;
-
-        // MACD Badge
-        const macdBadge = r.macd_crossover
-          ? `<span class="text-emerald-400 font-bold">CROSSOVER UP</span>`
-          : `<span class="text-slate-400">No Cross</span>`;
-
-        // Quant Signal Badge
-        const quantBadge = r.quant_signal === 'BUY'
+      tbody.innerHTML = results.map(r => {
+        if (r.status !== 'READY') {
+          return `<tr class="text-slate-500">
+            <td class="px-4 py-3 font-bold mono">${esc(r.symbol)}</td>
+            <td class="px-4 py-3 mono">${r.price !== null ? inr(r.price) : '—'}</td>
+            <td class="px-4 py-3" colspan="7">${esc(r.status.replace('_', ' '))}: ${esc(r.block_reason || '')}</td>
+          </tr>`;
+        }
+        const trend = r.trend_bullish
+          ? `<span class="px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 font-semibold">ABOVE EMA200</span>`
+          : `<span class="px-2 py-0.5 rounded bg-slate-800 text-slate-400">BELOW EMA200</span>`;
+        const macd = r.macd_crossover ? `<span class="text-emerald-400 font-bold">CROSSOVER UP</span>` : `<span class="text-slate-400">No cross</span>`;
+        const quant = r.quant_signal === 'BUY'
           ? `<span class="px-2.5 py-1 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold">BUY TRIGGER</span>`
           : `<span class="text-slate-400 font-medium">NEUTRAL</span>`;
 
-        // AI Verdict
-        let aiBadge = `<span class="text-slate-500 italic">Standby</span>`;
-        if (r.ai_verdict) {
-          if (r.ai_verdict.approve_trade) {
-            aiBadge = `<div class="space-y-0.5">
-              <span class="px-2 py-0.5 rounded bg-emerald-900/60 text-emerald-300 font-bold border border-emerald-700">APPROVED (${Math.round(r.ai_verdict.confidence_score * 100)}%)</span>
-              <div class="text-[10px] text-slate-400 max-w-xs truncate" title="${r.ai_verdict.reasoning}">${r.ai_verdict.reasoning}</div>
-            </div>`;
-          } else {
-            aiBadge = `<div class="space-y-0.5">
-              <span class="px-2 py-0.5 rounded bg-rose-950 text-rose-300 font-bold border border-rose-800">VETOED (${r.ai_verdict.risk_level})</span>
-              <div class="text-[10px] text-rose-300 max-w-xs truncate" title="${r.ai_verdict.reasoning}">${r.ai_verdict.reasoning}</div>
-            </div>`;
-          }
-        }
-
-        // Sizing
-        let sizingInfo = `<span class="text-slate-500">—</span>`;
-        if (r.sizing && r.sizing.shares > 0) {
-          sizingInfo = `<div class="mono text-[11px] leading-tight">
-            <span class="font-bold text-white">${r.sizing.shares} shares</span>
-            <div class="text-slate-400">SL: ₹${r.sizing.stop_loss} | TP: ₹${r.sizing.take_profit}</div>
+        let ai = `<span class="text-slate-500 italic">—</span>`;
+        const v = r.ai_verdict;
+        if (v) {
+          const conf = v.confidence_score !== null ? ` ${Math.round(v.confidence_score * 100)}%` : '';
+          const label = !v.evaluated ? (v.approve_trade ? 'NOT EVALUATED' : 'NOT EVALUATED (BLOCKED)') : (v.approve_trade ? `APPROVED${conf}` : `VETOED (${v.risk_level})`);
+          const tone = v.approve_trade && v.evaluated ? 'bg-emerald-900/60 text-emerald-300 border-emerald-700'
+            : (v.approve_trade ? 'bg-amber-950 text-amber-300 border-amber-800' : 'bg-rose-950 text-rose-300 border-rose-800');
+          ai = `<div class="space-y-0.5">
+            <span class="px-2 py-0.5 rounded font-bold border ${tone}">${esc(label)}</span>
+            <div class="text-[10px] text-slate-400 max-w-xs truncate" title="${esc(v.reasoning)}">${esc(v.reasoning)}</div>
           </div>`;
         }
 
-        // Action Button
-        let actionBtn = `<span class="text-slate-600 text-xs">Waiting</span>`;
-        if (r.quant_signal === 'BUY' && (!r.ai_verdict || r.ai_verdict.approve_trade)) {
-          actionBtn = `<button onclick="executeConfirmedTrade('${r.symbol}')" class="px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md shadow-emerald-600/30">
-            Execute Buy
-          </button>`;
+        let sizing = `<span class="text-slate-500">—</span>`;
+        if (r.sizing && r.sizing.shares > 0) {
+          sizing = `<div class="mono text-[11px] leading-tight">
+            <span class="font-bold text-white">${esc(r.sizing.shares)} shares</span>
+            <div class="text-slate-400">SL ${inr(r.sizing.stop_loss)} | TP ${inr(r.sizing.take_profit)}</div>
+          </div>`;
         }
 
-        tr.innerHTML = `
-          <td class="px-4 py-3 font-bold text-white mono">${r.symbol}</td>
-          <td class="px-4 py-3 mono font-semibold">₹${r.price.toFixed(2)}</td>
-          <td class="px-4 py-3">${trendBadge}</td>
-          <td class="px-4 py-3">${macdBadge}</td>
-          <td class="px-4 py-3 mono">${r.rsi || '—'}</td>
-          <td class="px-4 py-3">${quantBadge}</td>
-          <td class="px-4 py-3">${aiBadge}</td>
-          <td class="px-4 py-3">${sizingInfo}</td>
-          <td class="px-4 py-3 text-right">${actionBtn}</td>
-        `;
-        tbody.appendChild(tr);
-      });
-      lucide.createIcons();
+        let action = `<span class="text-slate-600 text-xs">—</span>`;
+        if (r.executable && r.sizing && r.sizing.shares > 0) {
+          action = `<button data-signal="${esc(r.signal_id)}" class="px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md shadow-emerald-600/30">Execute Buy</button>`;
+        } else if (r.quant_signal === 'BUY' && r.block_reason) {
+          action = `<span class="text-amber-300/80 text-[10px] leading-tight inline-block max-w-[11rem]">${esc(r.block_reason)}</span>`;
+        }
+
+        return `<tr class="hover:bg-slate-800/40 transition">
+          <td class="px-4 py-3 font-bold text-white mono">${esc(r.symbol)}</td>
+          <td class="px-4 py-3 mono font-semibold" title="Close of the ${esc((r.candle_time || '').slice(11, 16))} candle">${inr(r.price)}</td>
+          <td class="px-4 py-3">${trend}</td>
+          <td class="px-4 py-3">${macd}</td>
+          <td class="px-4 py-3 mono">${r.rsi ?? '—'}</td>
+          <td class="px-4 py-3">${quant}</td>
+          <td class="px-4 py-3">${ai}</td>
+          <td class="px-4 py-3">${sizing}</td>
+          <td class="px-4 py-3 text-right">${action}</td>
+        </tr>`;
+      }).join('');
     }
 
-    async function executeConfirmedTrade(symbol) {
-      const item = currentScanResults.find(s => s.symbol === symbol);
-      if (!item) {
-        alert('Stock not found in radar results.');
+    $('radar-tbody').addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-signal]');
+      if (btn) executeSignal(btn.dataset.signal, btn);
+    });
+
+    async function executeSignal(signalId, btn) {
+      const item = currentScanResults.find(s => s.signal_id === signalId);
+      if (!item) return alert('Signal not found. Re-scan the radar.');
+      const mode = lastStatus?.config?.trading_mode || 'PAPER';
+      const header = mode === 'LIVE' ? '⚠️ LIVE ORDER: REAL MONEY via Zerodha' : 'PAPER trade (simulated)';
+      if (!confirm(`${header}\n\nBUY about ${item.sizing.shares} shares of ${item.symbol} (signal close ${inr(item.price)}).\n` +
+        `Stop ${inr(item.sizing.stop_loss)} · Target ${inr(item.sizing.take_profit)} · Risk ≈ ${inr(item.sizing.risk_inr)}\n\n` +
+        `The server re-prices at the current market price and re-checks every risk rule before ordering.`)) return;
+      btn.disabled = true;
+      try {
+        const data = await post('/api/execute-trade', { signal_id: signalId });
+        alert(`Order filled: ${data.order.quantity} ${data.order.symbol} @ ${inr(data.order.price)} (${data.order.mode}). ID ${data.order.order_id}`);
+      } catch (err) {
+        alert(`Order NOT placed: ${err.message}` + (err.status >= 500 ? '\n\nCheck the Kite app before retrying.' : ''));
+      } finally {
+        btn.disabled = false;
+        fetchStatus(); fetchPositions(); fetchJournal(true);
+      }
+    }
+
+    // ---------------------------------------------------------------- positions
+    const fetchPositions = singleFlight(async () => {
+      let data;
+      try { data = await api('/api/positions'); } catch (err) { console.warn('positions:', err.message); return; }
+      const pList = $('positions-list');
+      $('positions-count').innerText = `${data.positions.length} Active`;
+      if (data.positions.length === 0) {
+        pList.innerHTML = `<div class="text-xs text-slate-500 text-center py-6">No open intraday positions.</div>`;
+      } else {
+        pList.innerHTML = data.positions.map(p => `
+          <div class="p-3 rounded-lg bg-slate-950 border border-slate-800 flex items-center justify-between">
+            <div>
+              <div class="font-bold text-white mono flex items-center gap-2">
+                ${esc(p.symbol)}
+                <span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-400 font-semibold">${esc(p.quantity)} QTY</span>
+                <span class="text-[10px] px-1.5 py-0.5 rounded ${p.mode === 'LIVE' ? 'bg-rose-950 text-rose-300' : 'bg-slate-800 text-slate-300'} font-semibold">${esc(p.mode || 'PAPER')}</span>
+              </div>
+              <div class="text-[11px] text-slate-400 mono">Entry ${inr(p.entry_price)} | Now ${inr(p.current_price)} | SL ${inr(p.stop_loss)} | TP ${inr(p.take_profit)}</div>
+            </div>
+            <div class="flex items-center gap-3">
+              <div class="text-right">
+                <div class="font-bold mono ${pnlClass(p.unrealized_pnl)}">${signedInr(p.unrealized_pnl)}</div>
+                <div class="text-[10px] text-slate-500" title="Price bar ${esc(p.price_as_of || 'n/a')}">${esc(p.entry_time)}</div>
+              </div>
+              <button data-symbol="${esc(p.symbol)}" data-mode="${esc(p.mode || 'PAPER')}" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-rose-900/60 border border-slate-700 hover:border-rose-700 text-rose-300 font-bold text-xs transition">Exit</button>
+            </div>
+          </div>`).join('');
+      }
+
+      const oList = $('orders-list');
+      oList.innerHTML = data.orders.length === 0
+        ? `<div class="text-xs text-slate-500 text-center py-6">No orders yet.</div>`
+        : data.orders.map(o => `
+          <div class="text-xs p-2 rounded bg-slate-950/70 border border-slate-800/80 flex items-center justify-between">
+            <div>
+              <span class="font-bold text-white mono">${esc(o.symbol)}</span>
+              <span class="text-slate-400"> • ${esc(o.action)} ${esc(o.quantity)} @ ${inr(o.price)}${o.price_estimated ? ' (est.)' : ''} · ${esc(o.mode || '')}${o.reason ? ' · ' + esc(o.reason) : ''}</span>
+            </div>
+            <div class="mono text-slate-400 text-[10px]">${esc(o.timestamp)}</div>
+          </div>`).join('');
+    });
+
+    $('positions-list').addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-symbol]');
+      if (btn) closeSinglePosition(btn.dataset.symbol, btn.dataset.mode, btn);
+    });
+
+    async function closeSinglePosition(symbol, mode, btn) {
+      const warning = mode === 'LIVE' ? '\n\nThis cancels the stop-loss and sends a real SELL to Zerodha.' : '';
+      if (!confirm(`Close the ${mode} position in ${symbol}?${warning}`)) return;
+      btn.disabled = true;
+      try {
+        const data = await post('/api/close-position', { symbol, reason: 'MANUAL_EXIT' });
+        alert(`Position closed. Net P&L after estimated charges: ${signedInr(data.realized_pnl)}`);
+      } catch (err) {
+        alert('Close FAILED: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        fetchStatus(); fetchPositions(); fetchJournal(true);
+      }
+    }
+
+    // ---------------------------------------------------------------- journal
+    let lastJournalSignature = '';
+
+    const fetchJournal = singleFlight(async (force = false) => {
+      let data;
+      try { data = await api('/api/journal'); } catch (err) { console.warn('journal:', err.message); return; }
+      const a = data.analytics;
+      $('jnl-trades').innerText = a.total_trades;
+      $('jnl-winrate').innerText = a.win_rate_pct.toFixed(1) + '%';
+      $('jnl-pf').innerText = a.profit_factor === null ? (a.win_count ? '∞' : '—') : a.profit_factor.toFixed(2);
+      const realEl = $('jnl-realized');
+      realEl.innerText = signedInr(a.total_realized_pnl);
+      realEl.className = 'text-lg font-bold mono mt-1 ' + pnlClass(a.total_realized_pnl);
+      realEl.title = `After estimated charges of ${inr(a.total_est_charges)}`;
+      $('jnl-avgwin').innerText = inr(a.avg_win);
+      $('jnl-avgloss').innerText = inr(a.avg_loss);
+
+      // Don't rebuild the table while a note is being typed, or when nothing changed.
+      const tbody = $('journal-tbody');
+      const signature = JSON.stringify(data.trades);
+      if (!force && (signature === lastJournalSignature || tbody.contains(document.activeElement))) return;
+      lastJournalSignature = signature;
+
+      if (!data.trades || data.trades.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="px-3 py-6 text-center text-slate-500">No trades recorded yet.</td></tr>`;
         return;
       }
-
-      if (!confirm(`Execute BUY for ${item.sizing.shares} shares of ${item.symbol} at ₹${item.price}?\n\nStop Loss: ₹${item.sizing.stop_loss}\nTake Profit: ₹${item.sizing.take_profit}\nRisk: ₹${item.sizing.risk_inr}`)) {
-        return;
-      }
-
-      try {
-        const res = await fetch('/api/execute-trade', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            symbol: item.symbol,
-            shares: item.sizing.shares,
-            price: item.price,
-            stop_loss: item.sizing.stop_loss,
-            take_profit: item.sizing.take_profit,
-            quant_rationale: `200 EMA Trend: ${item.trend_bullish ? 'Bullish' : 'Neutral'} | MACD Cross | RSI: ${item.rsi}`,
-            ai_rationale: item.ai_verdict ? item.ai_verdict.reasoning : "Technical setup aligned with market regime.",
-            ai_confidence: item.ai_verdict ? Math.round(item.ai_verdict.confidence_score * 100) : 85
-          })
-        });
-        const data = await res.json();
-        if (res.ok) {
-          alert(`Order placed successfully! Order ID: ${data.order.order_id}`);
-          fetchStatus();
-          fetchPositions();
-          fetchJournal();
-        } else {
-          alert(`Order failed: ${data.detail}`);
+      tbody.innerHTML = data.trades.map(t => {
+        const closed = t.status === 'CLOSED';
+        const pnl = t.realized_pnl || 0;
+        let status = `<span class="px-2 py-0.5 rounded bg-blue-950 text-blue-300 font-semibold border border-blue-800">OPEN</span>`;
+        if (closed) {
+          status = pnl > 0 ? `<span class="px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 font-bold border border-emerald-800">PROFIT</span>`
+            : pnl < 0 ? `<span class="px-2 py-0.5 rounded bg-rose-950 text-rose-300 font-bold border border-rose-800">LOSS</span>`
+            : `<span class="px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-semibold">EVEN</span>`;
         }
+        return `<tr class="hover:bg-slate-800/40 transition">
+          <td class="px-3 py-2.5 font-bold text-white mono">
+            <div>${esc(t.symbol)} <span class="text-[10px] text-slate-500">${esc(t.mode || '')}</span></div>
+            <div class="text-[10px] text-slate-500 font-normal">${esc(t.trade_id)}</div>
+          </td>
+          <td class="px-3 py-2.5 mono text-slate-400 text-[11px]">${esc(t.entry_time)}</td>
+          <td class="px-3 py-2.5 mono">
+            <span class="font-semibold text-white">${esc(t.quantity)} shares</span> @ ${inr(t.entry_price)}
+            <div class="text-[10px] text-slate-400">SL ${inr(t.stop_loss)} | TP ${inr(t.take_profit)}</div>
+          </td>
+          <td class="px-3 py-2.5 mono">
+            ${t.exit_price !== null && t.exit_price !== undefined ? `${inr(t.exit_price)}${t.exit_price_estimated ? ' (est.)' : ''} <span class="text-[10px] text-slate-400">(${esc(t.exit_reason || 'EXIT')})</span>` : '<span class="text-slate-500">—</span>'}
+            ${t.exit_time ? `<div class="text-[10px] text-slate-500">${esc(t.exit_time)}</div>` : ''}
+          </td>
+          <td class="px-3 py-2.5 max-w-xs">
+            <div class="text-[11px] text-slate-300 font-medium">${esc(t.quant_rationale || '')}</div>
+            <div class="text-[10px] text-slate-400 truncate mt-0.5" title="${esc(t.ai_rationale)}">${esc(t.ai_rationale)}</div>
+          </td>
+          <td class="px-3 py-2.5 mono ${closed ? pnlClass(pnl) + ' font-bold' : ''}">
+            ${closed ? `${signedInr(pnl)} <span class="text-[10px]" title="Gross ${signedInr(t.gross_pnl)}, est. charges ${inr(t.est_charges)}">(${pnl >= 0 ? '+' : ''}${esc(t.return_pct)}%)</span>` : '<span class="text-slate-500">Active</span>'}
+          </td>
+          <td class="px-3 py-2.5">${status}</td>
+          <td class="px-3 py-2.5">
+            <input type="text" value="${esc(t.notes || '')}" maxlength="2000" data-trade="${esc(t.trade_id)}" placeholder="Add reflection..." class="bg-slate-950 border border-slate-800 rounded px-2 py-1 text-[11px] text-white w-40 focus:w-56 transition-all placeholder-slate-600">
+          </td>
+        </tr>`;
+      }).join('');
+    });
+
+    $('journal-tbody').addEventListener('change', async (e) => {
+      const input = e.target.closest('input[data-trade]');
+      if (!input) return;
+      try { await post('/api/journal/note', { trade_id: input.dataset.trade, notes: input.value }); }
+      catch (err) { alert('Note not saved: ' + err.message); }
+    });
+
+    async function exportJournal() {
+      try {
+        const res = await fetch('/api/journal/export', { headers: { 'X-AetherKite-Token': TOKEN } });
+        if (!res.ok) throw new Error(`Server error ${res.status}`);
+        const url = URL.createObjectURL(await res.blob());
+        const a = document.createElement('a');
+        a.href = url; a.download = 'trading_journal.csv';
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
       } catch (err) {
-        alert('Network error: ' + err.message);
+        alert('Export failed: ' + err.message);
       }
     }
 
-    async function fetchPositions() {
-      try {
-        const res = await fetch('/api/positions');
-        const data = await res.json();
-        
-        // Render Positions
-        const pList = document.getElementById('positions-list');
-        pList.innerHTML = '';
-        document.getElementById('positions-count').innerText = `${data.positions.length} Active`;
-
-        if (data.positions.length === 0) {
-          pList.innerHTML = `<div class="text-xs text-slate-500 text-center py-6">No open intraday positions.</div>`;
-        } else {
-          data.positions.forEach(p => {
-            const el = document.createElement('div');
-            el.className = "p-3 rounded-lg bg-slate-950 border border-slate-800 flex items-center justify-between";
-            el.innerHTML = `
-              <div>
-                <div class="font-bold text-white mono flex items-center gap-2">
-                  ${p.symbol}
-                  <span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-400 font-semibold">${p.quantity} QTY</span>
-                </div>
-                <div class="text-[11px] text-slate-400 mono">Entry: ₹${p.entry_price} | SL: ₹${p.stop_loss} | TP: ₹${p.take_profit}</div>
-              </div>
-              <div class="flex items-center gap-3">
-                <div class="text-right">
-                  <div class="font-bold mono text-emerald-400">₹${p.unrealized_pnl >= 0 ? '+' : ''}${p.unrealized_pnl.toFixed(2)}</div>
-                  <div class="text-[10px] text-slate-500">${p.entry_time}</div>
-                </div>
-                <button onclick="closeSinglePosition('${p.symbol}')" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-rose-900/60 border border-slate-700 hover:border-rose-700 text-rose-300 font-bold text-xs transition">
-                  Exit
-                </button>
-              </div>
-            `;
-            pList.appendChild(el);
-          });
-        }
-
-        // Render Order History
-        const oList = document.getElementById('orders-list');
-        oList.innerHTML = '';
-        if (data.orders.length === 0) {
-          oList.innerHTML = `<div class="text-xs text-slate-500 text-center py-6">No orders placed in this session.</div>`;
-        } else {
-          data.orders.forEach(o => {
-            const el = document.createElement('div');
-            el.className = "text-xs p-2 rounded bg-slate-950/70 border border-slate-800/80 flex items-center justify-between";
-            el.innerHTML = `
-              <div>
-                <span class="font-bold text-white mono">${o.symbol}</span>
-                <span class="text-slate-400"> • ${o.action} ${o.quantity} @ ₹${o.price}</span>
-              </div>
-              <div class="mono text-slate-400 text-[10px]">${o.timestamp}</div>
-            `;
-            oList.appendChild(el);
-          });
-        }
-      } catch (err) {
-        console.error('Failed to fetch positions:', err);
-      }
-    }
-
-    async function closeSinglePosition(symbol) {
-      if (!confirm(`Close open position for ${symbol}?`)) return;
-      try {
-        const res = await fetch('/api/close-position', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ symbol: symbol, reason: 'MANUAL_DISCRETIONARY_EXIT' })
-        });
-        const data = await res.json();
-        if (res.ok) {
-          alert(`Position closed. Realized P&L: ₹${data.realized_pnl}`);
-          fetchStatus();
-          fetchPositions();
-          fetchJournal();
-        } else {
-          alert('Failed to close position: ' + data.detail);
-        }
-      } catch (err) {
-        alert('Error: ' + err.message);
-      }
-    }
-
-    async function fetchJournal() {
-      try {
-        const res = await fetch('/api/journal');
-        const data = await res.json();
-        const a = data.analytics;
-
-        // Render analytics ribbon
-        document.getElementById('jnl-trades').innerText = a.total_trades;
-        document.getElementById('jnl-winrate').innerText = a.win_rate_pct.toFixed(1) + '%';
-        document.getElementById('jnl-pf').innerText = a.profit_factor.toFixed(2);
-        
-        const realEl = document.getElementById('jnl-realized');
-        realEl.innerText = (a.total_realized_pnl >= 0 ? '+₹' : '-₹') + Math.abs(a.total_realized_pnl).toLocaleString('en-IN', {minimumFractionDigits: 2});
-        realEl.className = a.total_realized_pnl >= 0 ? "text-lg font-bold mono mt-1 text-emerald-400" : "text-lg font-bold mono mt-1 text-rose-400";
-
-        document.getElementById('jnl-avgwin').innerText = '₹' + a.avg_win.toLocaleString('en-IN', {minimumFractionDigits: 2});
-        document.getElementById('jnl-avgloss').innerText = '₹' + a.avg_loss.toLocaleString('en-IN', {minimumFractionDigits: 2});
-
-        // Render table
-        const tbody = document.getElementById('journal-tbody');
-        tbody.innerHTML = '';
-
-        if (!data.trades || data.trades.length === 0) {
-          tbody.innerHTML = `<tr><td colspan="8" class="px-3 py-6 text-center text-slate-500">No trades recorded in journal yet. Executed trades will automatically log here with their AI rationale.</td></tr>`;
-          return;
-        }
-
-        data.trades.forEach(t => {
-          const tr = document.createElement('tr');
-          tr.className = "hover:bg-slate-800/40 transition";
-
-          const pnlColor = t.realized_pnl > 0 ? "text-emerald-400 font-bold" : (t.realized_pnl < 0 ? "text-rose-400 font-bold" : "text-slate-400");
-          const pnlSign = t.realized_pnl > 0 ? "+" : "";
-
-          let statusBadge = `<span class="px-2 py-0.5 rounded bg-blue-950 text-blue-300 font-semibold border border-blue-800">OPEN</span>`;
-          if (t.status === 'CLOSED') {
-            if (t.realized_pnl > 0) {
-              statusBadge = `<span class="px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 font-bold border border-emerald-800">PROFIT</span>`;
-            } else if (t.realized_pnl < 0) {
-              statusBadge = `<span class="px-2 py-0.5 rounded bg-rose-950 text-rose-300 font-bold border border-rose-800">LOSS</span>`;
-            } else {
-              statusBadge = `<span class="px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-semibold">EVEN</span>`;
-            }
-          }
-
-          tr.innerHTML = `
-            <td class="px-3 py-2.5 font-bold text-white mono">
-              <div>${t.symbol}</div>
-              <div class="text-[10px] text-slate-500 font-normal">${t.trade_id}</div>
-            </td>
-            <td class="px-3 py-2.5 mono text-slate-400 text-[11px]">${t.entry_time}</td>
-            <td class="px-3 py-2.5 mono">
-              <span class="font-semibold text-white">${t.quantity} shares</span> @ ₹${t.entry_price.toFixed(2)}
-              <div class="text-[10px] text-slate-400">SL: ₹${t.stop_loss} | TP: ₹${t.take_profit}</div>
-            </td>
-            <td class="px-3 py-2.5 mono">
-              ${t.exit_price ? `₹${t.exit_price.toFixed(2)} <span class="text-[10px] text-slate-400">(${t.exit_reason || 'EXIT'})</span>` : '<span class="text-slate-500">—</span>'}
-              ${t.exit_time ? `<div class="text-[10px] text-slate-500">${t.exit_time}</div>` : ''}
-            </td>
-            <td class="px-3 py-2.5 max-w-xs">
-              <div class="text-[11px] text-slate-300 font-medium">${t.quant_rationale || 'Quant Rule'}</div>
-              <div class="text-[10px] text-slate-400 truncate mt-0.5" title="${t.ai_rationale}">${t.ai_rationale}</div>
-            </td>
-            <td class="px-3 py-2.5 mono ${pnlColor}">
-              ${t.status === 'CLOSED' ? `${pnlSign}₹${t.realized_pnl.toFixed(2)} <span class="text-[10px]">(${pnlSign}${t.return_pct}%)</span>` : '<span class="text-slate-500">Active</span>'}
-            </td>
-            <td class="px-3 py-2.5">${statusBadge}</td>
-            <td class="px-3 py-2.5">
-              <input type="text" value="${t.notes || ''}" placeholder="Add reflection..." onchange="saveTradeNote('${t.trade_id}', this.value)" class="bg-slate-950 border border-slate-800 rounded px-2 py-1 text-[11px] text-white w-40 focus:w-56 transition-all placeholder-slate-600">
-            </td>
-          `;
-          tbody.appendChild(tr);
-        });
-      } catch (err) {
-        console.error('Failed to fetch journal:', err);
-      }
-    }
-
-    async function saveTradeNote(tradeId, noteText) {
-      try {
-        await fetch('/api/journal/note', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ trade_id: tradeId, notes: noteText })
-        });
-      } catch (err) {
-        console.error('Failed to save note:', err);
-      }
-    }
-
+    // ---------------------------------------------------------------- halt / resume
     async function triggerKillSwitch() {
-      if (!confirm("⚠️ EMERGENCY KILL SWITCH WARNING:\n\nAre you sure you want to halt the system and immediately flatten all open positions?")) {
-        return;
-      }
+      if (!confirm('⚠️ EMERGENCY KILL SWITCH\n\nHalt new entries and close ALL open positions now?\nLIVE positions are closed at Zerodha.')) return;
       try {
-        const res = await fetch('/api/kill-switch', { method: 'POST' });
-        const data = await res.json();
+        const data = await post('/api/kill-switch');
         alert(data.message);
-        fetchStatus();
-        fetchPositions();
       } catch (err) {
-        alert('Kill switch failed: ' + err.message);
+        alert('Kill switch error: ' + err.message + '\n\nUse the Kite app to close positions.');
+      } finally {
+        fetchStatus(); fetchPositions(); fetchJournal(true);
       }
     }
 
     async function resumeSystem() {
-      try {
-        const res = await fetch('/api/resume-system', { method: 'POST' });
-        fetchStatus();
-      } catch (err) {
-        alert('Resume failed: ' + err.message);
-      }
+      const pending = lastStatus?.portfolio?.pending_live_orders || 0;
+      if (pending && !confirm(`${pending} live order(s) were left unresolved by a crash or broker error.\n\nHave you checked them in the Kite app? Resume anyway?`)) return;
+      try { await post('/api/resume-system', { clear_pending: pending > 0 }); }
+      catch (err) { alert('Resume failed: ' + err.message); }
+      fetchStatus();
     }
 
-    // AUDIO ALERT ENGINE (Web Audio API Synthesizer - No external mp3 files required)
+    // ---------------------------------------------------------------- audio
     let audioAlertsEnabled = false;
-    let knownBuySymbols = new Set();
+    let audioCtx = null;
 
     function toggleAudioAlerts() {
       audioAlertsEnabled = !audioAlertsEnabled;
-      const btn = document.getElementById('btn-audio-toggle');
-      const icon = document.getElementById('audio-icon');
-      const lbl = document.getElementById('audio-label');
-      
-      if (audioAlertsEnabled) {
-        btn.className = "flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border bg-emerald-950 text-emerald-300 border-emerald-800 transition shadow-sm";
-        icon.className = "w-3.5 h-3.5 text-emerald-400";
-        lbl.innerText = "Sound Alerts: ON";
-        playTradeChime(); // test chime on enable
-      } else {
-        btn.className = "flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700 transition";
-        icon.className = "w-3.5 h-3.5 text-slate-400";
-        lbl.innerText = "Sound Alerts: Off";
-      }
+      const btn = $('btn-audio-toggle');
+      const icon = btn.querySelector('svg, i');
+      btn.className = audioAlertsEnabled
+        ? 'flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border bg-emerald-950 text-emerald-300 border-emerald-800 transition shadow-sm'
+        : 'flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700 transition';
+      if (icon) icon.setAttribute('class', 'w-3.5 h-3.5 ' + (audioAlertsEnabled ? 'text-emerald-400' : 'text-slate-400'));
+      $('audio-label').innerText = audioAlertsEnabled ? 'Sound Alerts: ON' : 'Sound Alerts: Off';
+      if (audioAlertsEnabled) playTradeChime();
     }
 
     function playTradeChime() {
       try {
-        const AudioContext = window.AudioContext || window.webkitAudioContext;
-        if (!AudioContext) return;
-        const ctx = new AudioContext();
-
-        // 3-tone pleasant rising chime (C5 -> E5 -> G5)
-        const notes = [523.25, 659.25, 783.99];
-        notes.forEach((freq, idx) => {
-          const osc = ctx.createOscillator();
-          const gain = ctx.createGain();
-          osc.type = "sine";
-          osc.frequency.setValueAtTime(freq, ctx.currentTime + idx * 0.12);
-          gain.gain.setValueAtTime(0.18, ctx.currentTime + idx * 0.12);
-          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + idx * 0.12 + 0.35);
-          osc.connect(gain);
-          gain.connect(ctx.destination);
-          osc.start(ctx.currentTime + idx * 0.12);
-          osc.stop(ctx.currentTime + idx * 0.12 + 0.36);
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) return;
+        audioCtx = audioCtx || new Ctx();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        [523.25, 659.25, 783.99].forEach((freq, i) => {
+          const t = audioCtx.currentTime + i * 0.12;
+          const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, t);
+          gain.gain.setValueAtTime(0.18, t);
+          gain.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+          osc.connect(gain); gain.connect(audioCtx.destination);
+          osc.start(t); osc.stop(t + 0.36);
         });
       } catch (e) {
         console.warn('Audio chime error:', e);
       }
     }
 
-    // 15-MINUTE CANDLE COUNTDOWN ENGINE
+    // ---------------------------------------------------------------- candle clock
+    // Uses the server's IST clock. The server scans 20 s after each close; the
+    // page picks up the result about 40 s after the close.
+    let lastCandleFetch = '';
     function updateCandleCountdown() {
-      const now = new Date();
-      const minutes = now.getMinutes();
-      const seconds = now.getSeconds();
-      const remMin = 14 - (minutes % 15);
-      const remSec = 59 - seconds;
-      
-      const pad = (n) => n < 10 ? '0' + n : n;
-      const timerEl = document.getElementById('candle-timer');
-      if (timerEl) {
-        timerEl.innerText = `${pad(remMin)}:${pad(remSec)}`;
-        // Highlight in gold when closing within 60 seconds
-        if (remMin === 0) {
-          timerEl.className = "mono font-bold text-amber-400 text-xs animate-pulse";
-        } else {
-          timerEl.className = "mono font-bold text-white text-xs";
-        }
-      }
+      const now = new Date(Date.now() + istOffsetMs);
+      const remMin = 14 - (now.getMinutes() % 15), remSec = 59 - now.getSeconds();
+      const pad = (n) => String(n).padStart(2, '0');
+      const timer = $('candle-timer');
+      timer.innerText = `${pad(remMin)}:${pad(remSec)}`;
+      timer.className = remMin === 0 ? 'mono font-bold text-amber-400 text-xs animate-pulse' : 'mono font-bold text-white text-xs';
 
-      // Automatically trigger a radar scan at the close of every 15m candle (:00, :15, :30, :45)
-      if (remMin === 0 && remSec === 0) {
-        console.log("15-minute candle closed! Triggering auto-scan...");
-        triggerScan();
+      const key = `${now.getHours()}:${now.getMinutes() - (now.getMinutes() % 15)}`;
+      if (lastStatus?.market?.is_open && now.getMinutes() % 15 === 0 && now.getSeconds() >= 40 && lastCandleFetch !== key) {
+        lastCandleFetch = key;
+        loadScan();
       }
     }
 
+    // ---------------------------------------------------------------- settings
     async function openSettingsModal() {
-      try {
-        const res = await fetch('/api/status');
-        const data = await res.json();
-        document.getElementById('cfg-mode').value = data.config.trading_mode;
-        document.getElementById('cfg-capital').value = data.portfolio.cash_balance;
-        document.getElementById('cfg-risk').value = (data.config.risk_per_trade_pct * 100).toFixed(1);
-        document.getElementById('cfg-watchlist').value = data.config.watchlist.join(', ');
-        
-        // Telegram settings
-        document.getElementById('cfg-telegram-enabled').checked = Boolean(data.config.telegram_alerts_enabled);
-        if (data.config.telegram_connected) {
-          document.getElementById('cfg-telegram-token').placeholder = "•••••••• (Token configured)";
-        }
-      } catch (err) {}
-      document.getElementById('settings-modal').classList.remove('hidden');
+      let data;
+      try { data = await api('/api/settings'); }
+      catch (err) { return alert('Could not load settings: ' + err.message); }
+      const c = data.config;
+      $('cfg-mode').value = c.trading_mode;
+      $('cfg-mode-live').disabled = !data.live_enabled && c.trading_mode !== 'LIVE';
+      $('cfg-mode-note').innerText = (data.live_enabled ? '' : 'LIVE is disabled (start with AETHERKITE_ENABLE_LIVE=1). ') +
+        'Mode and capital can only change while no positions are open.';
+      $('cfg-capital').value = c.starting_capital;
+      $('cfg-risk').value = (c.risk_per_trade_pct * 100).toFixed(2);
+      $('cfg-watchlist').value = c.watchlist.join(', ');
+      $('cfg-telegram-enabled').checked = Boolean(c.telegram_alerts_enabled);
+      $('cfg-telegram-chat').value = c.telegram_chat_id || '';
+      $('cfg-telegram-token').value = '';
+      $('cfg-telegram-token').placeholder = c.telegram_configured ? '•••••• (saved; blank keeps it)' : '123456:ABC-DEF...';
+      $('cfg-gemini').value = '';
+      $('cfg-gemini').placeholder = c.gemini_configured ? '•••••• (saved; blank keeps it)' : 'AIzaSy...';
+      $('cfg-kite-key').value = '';
+      $('cfg-kite-secret').value = '';
+      $('cfg-kite-key').placeholder = c.kite_configured ? '•••••• (saved)' : 'Zerodha App Key';
+      $('cfg-kite-secret').placeholder = c.kite_configured ? '•••••• (saved)' : 'Zerodha App Secret';
+      $('cfg-redirect-url').innerText = data.kite_redirect_url;
+      $('settings-modal').classList.remove('hidden');
     }
 
-    function closeSettingsModal() {
-      document.getElementById('settings-modal').classList.add('hidden');
+    function closeSettingsModal() { $('settings-modal').classList.add('hidden'); }
+
+    async function saveSettings() {
+      const capital = parseFloat($('cfg-capital').value);
+      const riskPct = parseFloat($('cfg-risk').value);
+      if (!isFinite(capital) || capital <= 0) return alert('Starting capital must be a positive number.');
+      if (!isFinite(riskPct) || riskPct <= 0 || riskPct > 5) return alert('Risk per trade must be between 0 and 5%.');
+      const watchlist = $('cfg-watchlist').value.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+      if (!watchlist.length) return alert('The watchlist cannot be empty.');
+      const mode = $('cfg-mode').value;
+      if (mode === 'LIVE' && lastStatus?.config?.trading_mode !== 'LIVE' &&
+          !confirm('Switch to LIVE? Orders will use real money at Zerodha. Read REVIEW.md first.')) return;
+      const payload = {
+        trading_mode: mode,
+        starting_capital: capital,
+        risk_per_trade_pct: Math.round(riskPct * 100) / 10000,
+        watchlist,
+        gemini_api_key: $('cfg-gemini').value.trim(),
+        kite_api_key: $('cfg-kite-key').value.trim(),
+        kite_api_secret: $('cfg-kite-secret').value.trim(),
+        telegram_bot_token: $('cfg-telegram-token').value.trim(),
+        telegram_chat_id: $('cfg-telegram-chat').value.trim(),
+        telegram_alerts_enabled: $('cfg-telegram-enabled').checked,
+      };
+      try {
+        await post('/api/settings', payload);
+        alert('Settings saved.');
+        closeSettingsModal();
+        fetchStatus();
+      } catch (err) {
+        alert('Settings NOT saved: ' + err.message);
+      }
+    }
+
+    async function clearTelegram() {
+      if (!confirm('Remove the saved Telegram bot token and chat ID?')) return;
+      try {
+        await post('/api/settings', { clear_telegram: true });
+        $('cfg-telegram-chat').value = '';
+        $('cfg-telegram-token').placeholder = '123456:ABC-DEF...';
+        $('cfg-telegram-enabled').checked = false;
+      } catch (err) { alert('Could not remove: ' + err.message); }
     }
 
     async function testTelegramPing() {
-      const token = document.getElementById('cfg-telegram-token').value.trim();
-      const chat = document.getElementById('cfg-telegram-chat').value.trim();
       try {
-        const res = await fetch('/api/telegram-test', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ telegram_bot_token: token, telegram_chat_id: chat })
+        const data = await post('/api/telegram-test', {
+          telegram_bot_token: $('cfg-telegram-token').value.trim(),
+          telegram_chat_id: $('cfg-telegram-chat').value.trim(),
         });
-        const data = await res.json();
-        if (res.ok) {
-          alert('✅ ' + data.message);
-        } else {
-          alert('❌ ' + (data.detail || 'Test failed.'));
-        }
-      } catch (e) {
-        alert('Network error testing Telegram: ' + e.message);
+        alert('✅ ' + data.message);
+      } catch (err) {
+        alert('❌ ' + err.message);
       }
     }
 
     async function loginWithZerodha() {
       try {
-        const res = await fetch('/api/kite-login');
-        const data = await res.json();
-        if (res.ok && data.login_url) {
-          window.location.href = data.login_url;
-        } else {
-          alert('Could not start Zerodha login: ' + (data.detail || 'Check API Key in Settings'));
-        }
+        const data = await api('/api/kite-login');
+        window.location.href = data.login_url;
       } catch (err) {
-        alert('Network error connecting to Zerodha: ' + err.message);
+        alert('Could not start Zerodha login: ' + err.message);
       }
     }
 
-    async function saveSettings() {
-      const payload = {
-        trading_mode: document.getElementById('cfg-mode').value,
-        starting_capital: parseFloat(document.getElementById('cfg-capital').value),
-        risk_per_trade_pct: parseFloat(document.getElementById('cfg-risk').value) / 100.0,
-        gemini_api_key: document.getElementById('cfg-gemini').value.trim(),
-        kite_api_key: document.getElementById('cfg-kite-key').value.trim(),
-        kite_api_secret: document.getElementById('cfg-kite-secret').value.trim(),
-        telegram_bot_token: document.getElementById('cfg-telegram-token').value.trim(),
-        telegram_chat_id: document.getElementById('cfg-telegram-chat').value.trim(),
-        telegram_alerts_enabled: document.getElementById('cfg-telegram-enabled').checked,
-        watchlist: document.getElementById('cfg-watchlist').value.split(',').map(s => s.trim().toUpperCase()).filter(Boolean)
-      };
-
-      try {
-        const res = await fetch('/api/settings', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        if (res.ok) {
-          alert('Settings saved successfully!');
-          closeSettingsModal();
-          fetchStatus();
-        } else {
-          alert('Failed to save settings.');
-        }
-      } catch (err) {
-        alert('Error saving settings: ' + err.message);
-      }
-    }
-
-    // Init & Polling
+    // ---------------------------------------------------------------- init & polling
     window.addEventListener('DOMContentLoaded', () => {
-      lucide.createIcons();
-
-      // Check if redirected after successful Zerodha Auth
-      const urlParams = new URLSearchParams(window.location.search);
-      if (urlParams.get('auth_success') === '1') {
-        alert("🎉 Zerodha Kite Authenticated Successfully!\nYour daily trading session is now active.");
+      icons();
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('auth_success') === '1') {
+        alert('Zerodha connected. Today\'s Kite session is active.');
         window.history.replaceState({}, document.title, window.location.pathname);
       }
-
-      fetchStatus();
-      fetchPositions();
-      fetchJournal();
+      fetchStatus(); fetchPositions(); fetchJournal(true); loadScan();
       setInterval(fetchStatus, 5000);
       setInterval(fetchPositions, 10000);
       setInterval(fetchJournal, 15000);
-
-      // 15-Minute Candle Clock Tick every second
+      setInterval(() => { if (lastStatus?.market?.is_open) loadScan(); }, 60000);
       updateCandleCountdown();
       setInterval(updateCandleCountdown, 1000);
     });

@@ -18,3 +18,10 @@ scratch/
 Thumbs.db
 .vscode/
 .idea/
+
+# Runtime files written by the app
+logs/
+*.bak
+*.tmp
+.venv/
+venv/

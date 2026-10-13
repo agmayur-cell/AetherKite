@@ -1,6 +1,8 @@
 # AI-Powered Trading System for the Indian Stock Market (NSE/BSE)
 ## Technical Architecture, Quantitative Blueprint & Zerodha Kite Connect Implementation
 
+> **Design sketch, not the running code.** This document is the original design for AetherKite. The code listings below are illustrative: they are not `app.py`, they differ from it in several rules (for example, RSI 45–65 here vs 40–65 in the app), and they won't run as written (no entry point, Kite login flow, instrument lookup or news fetcher). No backtest exists in this document. For how the app actually behaves, see [README.md](README.md) and [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md); for known gaps, see [REVIEW.md](REVIEW.md).
+
 ---
 
 # 1. Executive Summary & Trading Philosophy
@@ -58,7 +60,7 @@ This system marries both disciplines into a **Hybrid Tri-Layer Architecture**:
 1. **Elimination of Repainting:**
    Trades are evaluated strictly against the last finalized candle (`iloc[-2]`). Intra-candle price fluctuations will never trigger accidental executions.
 2. **Tick-Size Compliance (₹0.05 Rule):**
-   Every entry, stop-loss, and limit price is algorithmically rounded to the nearest multiple of ₹0.05, eliminating exchange order rejections.
+   Every entry, stop-loss, and limit price is rounded to a valid tick. (NSE now uses price-banded tick sizes, so a flat ₹0.05 tick is not always valid. The app uses the banded tick floored at ₹0.05; see `aetherkite/market.py`.)
 3. **Fill Verification State Machine:**
    To prevent "naked short" exposure, the system never places a stop-loss order until the exchange confirms that the primary buy order is `COMPLETE`. The stop-loss quantity is bound strictly to the actual filled quantity.
 4. **SL-Limit (SL-L) Over SL-Market (SL-M):**
@@ -77,7 +79,7 @@ This system marries both disciplines into a **Hybrid Tri-Layer Architecture**:
 
 ---
 
-# 4. Production Python Implementation
+# 4. Reference Python Sketch (illustrative, not the running app)
 
 ```python
 """

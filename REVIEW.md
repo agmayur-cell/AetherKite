@@ -18,6 +18,59 @@ The second round adds two conclusions:
 
 ---
 
+## Fix status (2026-10-13)
+
+The fixes below are in the working tree on `docs/expert-review`. They are covered by 71 offline tests (`python -m unittest discover -s tests -t .`), which use fakes for market data, Gemini and Kite. Two things were checked against the installed libraries rather than from memory:
+- **kiteconnect 5.2.2:** `place_order(tag=…, market_protection=…)` and `market_protection=-1` meaning automatic protection.
+- **yfinance 1.7.0:** the batched-download layout. The module-level result dict the review worried about is no longer used.
+
+### Fixed
+- **Critical 1, 2 and 5: exits act on broker state.** LIVE exits and the kill switch cancel the stop, wait for it to reach a final state, re-read the net MIS quantity and sell `min(net, tracked)`. Local state changes only after the broker confirms, and failures keep the position and are reported. `sl_order_id` is now saved on the position.
+- **Critical 3: kill-switch cash.** It returns margin + net P&L, not notional.
+- **Critical 4: entry flow.**
+  - The entry is polled to a final state and cancelled if it hasn't filled.
+  - Only the filled quantity is protected.
+  - If the stop fails, the position is flattened immediately. If the flatten also fails, the error is critical and the system halts.
+  - A write-ahead `pending_live_orders` record makes startup halt after a crash.
+  - The HTTPException is no longer re-wrapped as a 500.
+- **Critical 6: storage.**
+  - One `TRADING_LOCK` around every load→modify→save.
+  - GET routes never write.
+  - Atomic writes (temp file + fsync + `os.replace`, keeping a `.bak`).
+  - NaN is rejected on input and on save.
+  - A corrupt file is reported (503) and never overwritten.
+- **Critical 7: auth and secrets.**
+  - Per-launch token in a custom header, which also blocks CSRF on the kill switch and resume.
+  - Host allowlist (blocks DNS rebinding), CSP and security headers.
+  - No secret is ever returned by the API.
+- **Critical 8: modes.** Each position records its mode. PAPER positions never send broker orders. Mode and capital can change only while flat.
+- **Critical 9: TATAMOTORS.** Orders use TMPV, and the default and example watchlists use TMPV. **[external]** confirm TMPV is the current NSE symbol.
+- **Critical 10, partial.** MARKET orders now carry `market_protection=-1` and a short `tag`.
+- **High: safeguards and execution.**
+  - **Safeguards from the docs now exist.** Entry window 09:45–14:00, enforced on the server. A background engine (independent of the browser) handles paper SL/TP, LIVE stop-fill detection, the LIVE software target, the 15:10 square-off and stale-day reconciliation. The Nifty regime filter is wired up and fails closed.
+  - **Execute takes only a server-side `signal_id`.** Price, size and stop are computed on the server at the current price. It checks freshness, the AI verdict, duplicates, max positions, the daily loss limit, the chase guard, the LIVE flag and the Kite session date.
+  - **The AI gate fails closed in LIVE.** Approval needs confidence ≥ 0.70. PAPER marks "not evaluated", news-feed failures are distinguished from an empty feed, the prompt is injection-hardened, and there is a timeout and a per-candle cache.
+  - **Settings.** Blank secrets keep their saved values. The capital field shows starting capital. Pydantic validation covers types, ranges, NaN and symbols.
+  - **Execution details.** SL-L buffer is 0.3% of the trigger. Tick sizes are banded and floored at ₹0.05 (valid under both tables). The stored stop equals the broker trigger. ATR is no longer tick-rounded. Sizing uses equity with a notional cap.
+  - **Data.** One batched, cached download. Closed bars are detected by timestamp. The server auto-scans 20 seconds after each candle closes, during market hours only. Entries use the current price (Kite LTP in LIVE).
+- **Medium and Low.**
+  - **Correctness:** equity formula; index change against the previous close (no hardcoded fallback); journal P&L net of *estimated* charges; `profit_factor` is `null` when there are no losses; unique trade IDs; P&L colours.
+  - **UI and output safety:** all `innerHTML` escaped with delegated handlers; Telegram escaping, de-duplication and suppression while halted; `kite_callback` escaped and checking `status`; CSV formula injection fixed (with a BOM); news URL encoded; journal not re-rendered while typing.
+  - **Dependencies and launcher:** pandas-ta replaced by in-house indicators; dependencies pinned; `--reload` removed; launcher fixed (`cd /d`, venv, delayed browser).
+- **Second-round code findings: all items fixed.** Verification also found a new bug: FastAPI's default 422 handler crashed with a 500 when echoing NaN input. That is fixed too.
+- **Docs rewritten.** README, user guide and PROJECT_CONTEXT match the code, with a disclaimer, PAPER vs LIVE table, Kite redirect URL, setup steps and troubleshooting. The setup guide is marked as a design sketch.
+
+### Not fixed (still open)
+- **Strategy edge.** Unproven. Run the backtest on `feat/backtest-harness`. The trader's ideas are not implemented: signal ranking, a sector cap, an event calendar, session-only ATR, and a minimum ATR%.
+- **Reconciliation.** There is no full broker reconciliation and no `kite.margins()`; LIVE cash is a local estimate. The LIVE target is software-only. There is no watchdog for a triggered-but-unfilled SL-L. An unresolved write-ahead order must be checked by hand in Kite.
+- **Data and calendar.** yfinance (delayed, unofficial); no Kite WebSocket or instrument master; NSE holidays must be entered in `market_holidays`.
+- **Deployment and compliance.** Static IP and algo registration. A sleeping laptop stops the engine; broker stops still protect LIVE. There is no single-instance lock.
+- **Frontend.** Tailwind and Lucide still load from CDNs without SRI.
+- **Placeholder values.** The charge rates in `aetherkite/costs.py` and the tick table are written from memory. **[external]**
+- **Licence.** There is no LICENSE file; choosing one is the owner's decision.
+
+---
+
 ## Consolidated findings
 
 ### Critical: can lose real money
