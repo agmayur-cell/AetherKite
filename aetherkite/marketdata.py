@@ -60,11 +60,21 @@ def yfinance_fetch(symbols: List[str], period: str = "30d", interval: str = "15m
     import yfinance as yf
 
     tickers = {yahoo_ticker(s).upper(): s for s in symbols}
-    data = yf.download(list(tickers), period=period, interval=interval, group_by="ticker",
-                       auto_adjust=False, threads=True, progress=False, timeout=10,
-                       multi_level_index=True)
+    kwargs = dict(period=period, interval=interval, group_by="ticker", auto_adjust=False,
+                  threads=True, progress=False, timeout=10)
+    try:
+        data = yf.download(list(tickers), multi_level_index=True, **kwargs)
+    except TypeError:  # yfinance older than ~0.2.48 has no multi_level_index argument
+        data = yf.download(list(tickers), **kwargs)
     out: Dict[str, pd.DataFrame] = {}
-    if data is None or data.empty or not isinstance(data.columns, pd.MultiIndex):
+    if data is None or data.empty:
+        return out
+    if not isinstance(data.columns, pd.MultiIndex):
+        # Older yfinance returns flat columns for a single ticker.
+        if len(tickers) == 1:
+            frame = normalize_frame(data)
+            if frame is not None:
+                out[next(iter(tickers.values()))] = frame
         return out
     for ticker in data.columns.get_level_values(0).unique():
         symbol = tickers.get(str(ticker).upper())

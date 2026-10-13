@@ -1053,6 +1053,12 @@
     // ---------------------------------------------------------------- init & polling
     window.addEventListener('DOMContentLoaded', () => {
       icons();
+      if (TOKEN === '__AETHERKITE' + '_TOKEN__') {
+        // The server didn't inject a token: this page came from an outdated server process or was opened via /static/.
+        showError('This page was not served by the current AetherKite server. Close every AetherKite console window, ' +
+          'run start_dashboard.bat again, then open http://127.0.0.1:8000/ (not /static/index.html).');
+        return;
+      }
       const params = new URLSearchParams(window.location.search);
       if (params.get('auth_success') === '1') {
         alert('Zerodha connected. Today\'s Kite session is active.');

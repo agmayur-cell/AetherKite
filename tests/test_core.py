@@ -172,6 +172,27 @@ class MarketDataTests(unittest.TestCase):
         self.assertEqual([t.strftime("%H:%M") for t in tcs.index], ["09:15"])
         self.assertEqual(list(tcs.columns), ["open", "high", "low", "close", "volume"])
 
+    def test_older_yfinance_without_multi_level_index(self):
+        idx = pd.DatetimeIndex(["2026-10-14 09:15", "2026-10-14 09:30"], tz="Asia/Kolkata")
+        flat = pd.DataFrame({"Open": [1.0, 2.0], "High": [1.5, 2.5], "Low": [0.5, 1.5], "Close": [1.2, 2.2],
+                             "Volume": [10, 20]}, index=idx)
+        calls = []
+
+        def download(tickers, **kw):
+            calls.append(kw)
+            if "multi_level_index" in kw:
+                raise TypeError("download() got an unexpected keyword argument 'multi_level_index'")
+            return flat
+
+        sys.modules["yfinance"] = types.SimpleNamespace(download=download)
+        try:
+            out = marketdata.yfinance_fetch(["TCS"])
+        finally:
+            del sys.modules["yfinance"]
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(list(out), ["TCS"])
+        self.assertEqual(out["TCS"]["close"].tolist(), [1.2, 2.2])
+
     def test_cache_and_single_batched_fetch(self):
         calls = []
         md = marketdata.MarketData(fetcher=lambda syms: calls.append(syms) or {s: None for s in syms}, max_age=60)
