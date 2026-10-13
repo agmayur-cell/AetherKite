@@ -945,9 +945,17 @@
     let lastCandleFetch = '';
     function updateCandleCountdown() {
       const now = new Date(Date.now() + istOffsetMs);
+      const timer = $('candle-timer');
+      // NSE cash session only (09:15-15:30). The server's is_open covers weekends
+      // and holidays; the local check stops the clock on time between status polls.
+      const hhmm = now.getHours() * 60 + now.getMinutes();
+      if (!lastStatus?.market?.is_open || hhmm < 9 * 60 + 15 || hhmm >= 15 * 60 + 30) {
+        timer.innerText = lastStatus ? 'Market closed' : '--:--';
+        timer.className = 'mono font-bold text-slate-500 text-xs';
+        return;
+      }
       const remMin = 14 - (now.getMinutes() % 15), remSec = 59 - now.getSeconds();
       const pad = (n) => String(n).padStart(2, '0');
-      const timer = $('candle-timer');
       timer.innerText = `${pad(remMin)}:${pad(remSec)}`;
       timer.className = remMin === 0 ? 'mono font-bold text-amber-400 text-xs animate-pulse' : 'mono font-bold text-white text-xs';
 

@@ -56,7 +56,7 @@ On weekends and on dates listed in `market_holidays`, entries are blocked. You m
 
 ### Ticker bar
 - **Sensex and Nifty:** change against the previous session's close, delayed. "Data unavailable" means the feed failed.
-- **Next Candle Close:** a countdown using the server's IST clock.
+- **Next Candle Close:** a countdown using the server's IST clock. It runs only during the NSE session (09:15–15:30 IST on trading days) and shows "Market closed" otherwise.
 - **Sound Alerts:** plays a chime when a new executable signal appears while the page is open.
 - **Regime badge:** whether the Nifty filter currently allows longs. Hover over it for the numbers.
 
